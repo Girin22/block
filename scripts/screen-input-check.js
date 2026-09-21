@@ -21,7 +21,7 @@ async (page) => {
   await swipe(100, 360, 135, 740);
   const vertical = await receipt();
   if (vertical.length !== 1) throw new Error('Empty-screen down swipe did not place exactly one tile');
-  if (vertical[0].x !== '172') throw new Error('Vertical swipe drifted sideways');
+  if (Math.abs(Number(vertical[0].x) - (40 + 4 * 264 / 9)) > .001) throw new Error('Vertical swipe drifted sideways');
   await page.reload(); await page.waitForTimeout(200);
   // Empty-screen tap rotates vertical, horizontal swipe moves to the right wall,
   // second empty-screen tap rotates horizontal with a wall kick.
@@ -31,7 +31,7 @@ async (page) => {
   await swipe(100, 360, 135, 740);
   const right = await receipt();
   if (right.length !== 1 || right[0].shape !== '#tile-2-1') throw new Error('Wall rotation failed');
-  if (right[0].x !== '260') throw new Error('Right wall kick did not settle at column four');
+  if (Math.abs(Number(right[0].x) - (40 + 8 * 264 / 9)) > .001) throw new Error('Right wall kick did not settle at column seven');
   if (Number(right[0].x) <= Number(vertical[0].x)) throw new Error('Empty-screen horizontal swipe failed');
   await page.goto('http://127.0.0.1:5173/?stress=100&layout=tower');
   await page.waitForTimeout(300);

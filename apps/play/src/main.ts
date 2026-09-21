@@ -1,20 +1,37 @@
 /// <reference types="vite/client" />
 import './style.css';
-import { Pavement, type Rotation } from '../../../packages/play-core';
+import { Pavement, SPAWN_X, type Rotation } from '../../../packages/play-core';
 import { PlayScene } from './scene';
 import { PlaySound } from './sound';
 import { isDownSwipe, swipeAxis, type SwipeAxis } from './input';
 import { downloadFile, Receipt, receiptPhoto } from './export';
 import { mountReceiptPreview } from './receipt-preview';
+import { PauseIcon } from './pause-icon';
+import { PlayTimer } from './play-timer';
+import { FILL_LANDS } from './drop-motion';
+import { tileImages } from './tile-assets';
 
-document.querySelector('#app')!.innerHTML = `<main class="play"><canvas id="playfield" tabindex="0" aria-label="블록 쌓기. 좌우 스와이프로 이동, 탭으로 회전, 아래 스와이프로 배치."></canvas><button id="pause" aria-label="일시정지"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7v10M15 7v10"/></svg></button></main><dialog id="pause-menu" aria-label="일시정지"><button id="resume">Resume</button><button id="export">Export</button></dialog>`;
+document.querySelector('#app')!.innerHTML = `<main class="play">
+  <canvas id="playfield" tabindex="0" aria-label="블록 쌓기. 좌우 스와이프로 이동, 탭으로 회전, 아래 스와이프로 배치."></canvas>
+  <section id="pause-actions" aria-label="일시정지 기록" aria-hidden="true" inert>
+    <div class="pause-content">
+      <div class="pause-stat" aria-label="플레이 시간"><img src="${tileImages.vertical}" alt=""/><span id="play-time">0min</span></div>
+      <div class="pause-stat" aria-label="놓은 초록 블록 수"><img src="${tileImages.vertical}" alt=""/><span id="green-count">0</span></div>
+      <div class="pause-stat" aria-label="자동 채움 흰 블록 수"><img class="center-icon" src="${tileImages.center}" alt=""/><span id="white-count">0</span></div>
+      <button id="export">Export</button>
+    </div>
+  </section>
+  <button id="pause" aria-label="일시정지" aria-pressed="false" aria-controls="pause-actions"><canvas id="pause-animation" width="40" height="40" aria-hidden="true"></canvas></button>
+</main><dialog id="pause-menu" class="receipt-open" aria-label="이미지 저장"></dialog>`;
 const canvas = document.querySelector<HTMLCanvasElement>('#playfield')!;
 canvas.setAttribute('aria-label', '화면 어디서든 좌우 스와이프로 이동, 아래 스와이프로 내리기. 위로 이동 불가. 탭으로 회전.');
 const menu = document.querySelector<HTMLDialogElement>('#pause-menu')!;
 const pauseButton = document.querySelector<HTMLButtonElement>('#pause')!;
-const pauseActions = document.createElement('div');
-pauseActions.id = 'pause-actions';
-pauseActions.append(...Array.from(menu.children)); menu.append(pauseActions);
+const play = document.querySelector<HTMLElement>('.play')!;
+const pauseActions = document.querySelector<HTMLElement>('#pause-actions')!;
+const pauseIcon = new PauseIcon(pauseButton, document.querySelector<HTMLCanvasElement>('#pause-animation')!);
+const playTimer = new PlayTimer();
+let paused = false;
 const receiptPanel = document.createElement('section');
 receiptPanel.id = 'receipt-panel'; receiptPanel.hidden = true;
 receiptPanel.innerHTML = `<header class="receipt-header"><button id="receipt-back" aria-label="영수증 닫기">닫기</button></header><div id="receipt-scroll"><div id="receipt-image" role="img" aria-label="이번 게임에서 만든 보도 영수증"></div></div><footer class="receipt-footer"><p id="receipt-status" role="status"></p><button id="receipt-save">이미지 저장</button></footer>`;
@@ -23,21 +40,21 @@ const saveButton = document.querySelector<HTMLButtonElement>('#receipt-save')!;
 const backButton = document.querySelector<HTMLButtonElement>('#receipt-back')!;
 const receiptStatus = document.querySelector<HTMLElement>('#receipt-status')!;
 const limitNote = document.createElement('p'); limitNote.id = 'session-limit'; limitNote.hidden = true;
-limitNote.textContent = '172,800개를 모두 놓았어요. Export에서 길을 저장해 주세요.'; pauseActions.prepend(limitNote);
-const resumeButton = document.querySelector<HTMLButtonElement>('#resume')!;
+limitNote.textContent = '172,800개를 모두 놓았어요. Export에서 길을 저장해 주세요.';
+document.querySelector('#export')!.before(limitNote);
 let photo: File | undefined, photoURL: string | undefined;
 let photoGeneration = 0, savingPhoto = false, manualPhoto = false;
 let generationAbort: AbortController | undefined, disposePreview: (() => void) | undefined;
 let board = new Pavement(), started = new Date();
 const sound = new PlaySound();
 let view: PlayScene;
-let x = 2, rotation: Rotation = 0;
+let x = SPAWN_X, rotation: Rotation = 0;
 let gesture: { id: number; x: number; y: number; lastY: number; column: number; moved: boolean; lowered: boolean; axis?: SwipeAxis } | undefined;
 let fillSound: ReturnType<typeof setTimeout> | undefined;
 function createScene() {
   try {
     view = new PlayScene(canvas, board, drop); view.aim(x, rotation);
-    if (import.meta.env.DEV && board.tiles.length) view.add(board.tiles.filter(tile => tile.y >= board.height - 24));
+    if (import.meta.env.DEV && board.tiles.length) view.add(board.tiles.filter(tile => tile.y >= board.height - 24), false);
   }
   catch (error) {
     console.error(error); const message = document.createElement('p'); message.className = 'render-error';
@@ -56,7 +73,7 @@ if (import.meta.env.DEV) {
   }
 }
 createScene();
-const blocked = () => menu.open || !view || view.busy || document.hidden;
+const blocked = () => paused || menu.open || !view || view.busy || document.hidden;
 function aim(column: number, nextRotation = rotation) {
   if (view.aim(column, nextRotation)) { rotation = nextRotation; x = view.column; }
 }
@@ -67,16 +84,17 @@ function drop() {
   const landing = board.landingFrom(column, view.activeY, orientation);
   view.drop(() => {
     const added = board.place(column, landing.y, orientation); view.add(added); sound.place();
-    if (added.some(tile => tile.white)) fillSound = setTimeout(() => { if (!menu.open && !document.hidden) sound.place(true); }, 90);
+    // The filler is heard at the moment it seats, not when it first appears.
+    if (added.some(tile => tile.white)) fillSound = setTimeout(() => { if (!paused && !document.hidden) sound.place(true); }, FILL_LANDS * 1000);
     // A fresh piece always enters at the current camera's upper center.
-    x = 2; rotation = 0; view.spawn();
+    x = SPAWN_X; rotation = 0; view.spawn();
     if (board.atLimit) pause();
   });
 }
 canvas.addEventListener('pointerdown', event => {
   if (blocked() || gesture || !event.isPrimary || event.button !== 0) return;
   event.preventDefault(); canvas.focus({ preventScroll: true }); sound.unlock();
-  view.beginDrag();
+  view.beginDrag(); playTimer.start();
   gesture = { id: event.pointerId, x: event.clientX, y: event.clientY, lastY: event.clientY, column: x, moved: false, lowered: false };
   canvas.setPointerCapture(event.pointerId);
 });
@@ -90,7 +108,7 @@ canvas.addEventListener('pointermove', event => {
     const down = Math.max(0, event.clientY - gesture.lastY);
     if (gesture.axis === 'vertical') {
       if (isDownSwipe(dx, dy)) gesture.lowered = true;
-      if (down > 0) view.lower(down / (view.cellPixels * 0.984));
+      if (down > 0) view.lower(down / view.cellPixels);
     }
   }
   gesture.lastY = event.clientY;
@@ -110,36 +128,57 @@ canvas.addEventListener('lostpointercapture', cancelGesture);
 canvas.addEventListener('keydown', event => {
   if (blocked() || event.repeat || event.ctrlKey || event.metaKey || event.altKey) return;
   if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Space'].includes(event.code)) return;
-  view.start(); // Keyboard testing is equivalent to the first tile interaction.
+  view.start(); playTimer.start(); // Keyboard testing is equivalent to the first tile interaction.
   event.preventDefault(); sound.unlock();
   if (event.code === 'ArrowLeft') aim(x - 1);
   else if (event.code === 'ArrowRight') aim(x + 1);
   else if (event.code === 'ArrowUp') aim(x, ((rotation + 1) % 4) as Rotation);
   else drop();
 });
-function pause() {
-  cancelGesture(); clearTimeout(fillSound); view?.pause(true); sound.pause();
-  limitNote.hidden = !board.atLimit; resumeButton.disabled = board.atLimit;
-  if (!menu.open) menu.showModal(); pauseButton.hidden = true;
+function updatePauseUI() {
+  play.classList.toggle('is-paused', paused);
+  pauseActions.inert = !paused; pauseActions.setAttribute('aria-hidden', String(!paused));
+  canvas.inert = paused;
+  pauseButton.setAttribute('aria-pressed', String(paused));
+  pauseButton.setAttribute('aria-label', paused ? '재개' : '일시정지');
+  pauseButton.disabled = board.atLimit;
+  limitNote.hidden = !board.atLimit;
+  pauseIcon.setPaused(paused);
 }
-function resume() { menu.close(); }
+function pause() {
+  cancelGesture(); clearTimeout(fillSound); playTimer.pause(); view?.pause(true); sound.pause();
+  if (paused) return;
+  paused = true;
+  document.querySelector('#play-time')!.textContent = `${Math.floor(playTimer.elapsed() / 60000)}min`;
+  document.querySelector('#green-count')!.textContent = String(board.greens);
+  document.querySelector('#white-count')!.textContent = String(board.tiles.length - board.greens);
+  updatePauseUI();
+}
+function resume() {
+  if (board.atLimit || menu.open) return;
+  paused = false; updatePauseUI(); playTimer.resume();
+  view?.pause(false); sound.unlock(); canvas.focus({ preventScroll: true });
+}
 function closeReceipt() {
   generationAbort?.abort(); generationAbort = undefined;
   disposePreview?.(); disposePreview = undefined;
   photoGeneration++; photo = undefined; manualPhoto = false;
   if (photoURL) URL.revokeObjectURL(photoURL); photoURL = undefined;
-  receiptPanel.hidden = true; pauseActions.hidden = false; menu.classList.remove('receipt-open');
+  receiptPanel.hidden = true;
   document.querySelector('#receipt-image')!.replaceChildren();
 }
 function resetSession() {
   clearTimeout(fillSound); gesture = undefined; view?.dispose(); sound.reset();
-  board = new Pavement(); started = new Date(); x = 2; rotation = 0;
-  limitNote.hidden = true; resumeButton.disabled = false;
-  createScene(); if (menu.open) view?.pause(true);
+  board = new Pavement(); started = new Date(); x = SPAWN_X; rotation = 0; playTimer.reset();
+  limitNote.hidden = true; pauseButton.disabled = false;
+  createScene(); view?.pause(paused);
 }
-pauseButton.addEventListener('click', pause);
-document.querySelector('#resume')!.addEventListener('click', resume);
+pauseButton.addEventListener('click', () => { if (paused) resume(); else pause(); });
+document.addEventListener('keydown', event => {
+  if (event.code === 'Escape' && paused && !menu.open) { event.preventDefault(); resume(); }
+});
 document.querySelector('#export')!.addEventListener('click', async () => {
+  if (!paused || menu.open) return;
   generationAbort?.abort(); disposePreview?.();
   generationAbort = new AbortController();
   const signal = generationAbort.signal;
@@ -148,7 +187,7 @@ document.querySelector('#export')!.addEventListener('click', async () => {
   receiptStatus.textContent = '';
   photo = undefined; manualPhoto = false;
   saveButton.disabled = true; saveButton.textContent = '사진 준비 중…';
-  pauseActions.hidden = true; receiptPanel.hidden = false; menu.classList.add('receipt-open');
+  receiptPanel.hidden = false; menu.returnValue = ''; menu.showModal();
   document.querySelector('#receipt-scroll')!.scrollTop = 0;
   disposePreview = mountReceiptPreview(document.querySelector<HTMLElement>('#receipt-image')!, document.querySelector<HTMLElement>('#receipt-scroll')!, receipt);
   try {
@@ -180,13 +219,13 @@ document.querySelector('#export')!.addEventListener('click', async () => {
   }
 });
 document.querySelector('#receipt-back')!.addEventListener('click', () => {
-  closeReceipt(); document.querySelector<HTMLButtonElement>('#export')!.focus();
+  menu.close('cancelled');
 });
 saveButton.addEventListener('click', async () => {
   if (savingPhoto || !photo) return;
-  if (manualPhoto) { resetSession(); menu.close(); return; }
+  if (manualPhoto) { resetSession(); menu.close('saved'); return; }
   if (photo.type === 'image/svg+xml') {
-    try { downloadFile(photo); resetSession(); menu.close(); }
+    try { downloadFile(photo); resetSession(); menu.close('saved'); }
     catch { receiptStatus.textContent = '파일을 저장하지 못했어요. 다시 시도해 주세요.'; }
     return;
   }
@@ -195,7 +234,7 @@ saveButton.addEventListener('click', async () => {
     receiptStatus.textContent = '저장 메뉴에서 ‘이미지 저장’을 선택해 주세요.';
     try {
       await navigator.share({ files: [photo] });
-      resetSession(); menu.close();
+      resetSession(); menu.close('saved');
     } catch (error) {
       receiptStatus.textContent = error instanceof Error && error.name === 'AbortError'
         ? '' : '저장 메뉴를 열지 못했어요. 다시 시도해 주세요.';
@@ -212,16 +251,17 @@ saveButton.addEventListener('click', async () => {
     receiptStatus.textContent = '사진을 길게 눌러 저장해 주세요. PC에서는 우클릭으로 저장할 수 있어요. 저장 후 아래 버튼을 눌러 주세요.';
   }
 });
-menu.addEventListener('cancel', event => {
-  if (savingPhoto) { event.preventDefault(); return; }
-  if (!receiptPanel.hidden) { event.preventDefault(); closeReceipt(); document.querySelector<HTMLButtonElement>('#export')!.focus(); }
+menu.addEventListener('cancel', event => { if (savingPhoto) event.preventDefault(); });
+menu.addEventListener('close', () => {
+  closeReceipt();
+  if (menu.returnValue === 'saved') resume();
+  else document.querySelector<HTMLButtonElement>('#export')!.focus();
 });
-menu.addEventListener('close', () => { closeReceipt(); view?.pause(false); sound.unlock(); pauseButton.hidden = false; canvas.focus({ preventScroll: true }); });
 document.addEventListener('visibilitychange', () => { if (document.hidden) pause(); });
-window.addEventListener('pagehide', () => { clearTimeout(fillSound); gesture = undefined; sound.pause(); });
+window.addEventListener('pagehide', () => { clearTimeout(fillSound); gesture = undefined; playTimer.pause(); sound.pause(); });
 window.addEventListener('pageshow', event => {
   if (!event.persisted) return;
   // A full navigation back from the browser cache starts a fresh, unsaved canvas.
-  resetSession(); if (menu.open) menu.close(); pauseButton.hidden = false;
+  resetSession(); if (menu.open) menu.close('saved'); else resume();
 });
 if (board.atLimit) pause();

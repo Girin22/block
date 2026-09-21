@@ -13,14 +13,25 @@ it('never sacrifices photo resolution: chooses SVG instead of shrinking', () => 
   expect(receiptFormat(344, boundary + 1)).toBe('svg');
 });
 
-it('keeps a long preview bounded while full SVG retains every tile with shared paths', async () => {
+it('keeps PNG dimensions integral for heights between three-row motifs', () => {
+  for (const height of [4, 5, 7, 8]) {
+    const receipt = new Receipt(stressBoard(height, true), new Date(2026, 8, 21));
+    const pixels = photoSize(receipt.width, receipt.height);
+    expect(pixels.width).toBe(688);
+    expect(Number.isInteger(pixels.height)).toBe(true);
+    expect(receipt.height).toBeGreaterThanOrEqual(height * 264 / 9 + 112);
+    expect(receipt.format).toBe('png');
+  }
+});
+
+it('keeps a long preview bounded while full SVG retains every tile with shared embedded images', async () => {
   const receipt = new Receipt(stressBoard(3600), new Date(2026, 8, 7));
-  expect(receipt.window(0, 1000).match(/<use /g)!.length).toBeLessThan(100);
+  expect(receipt.window(0, 1000).match(/<use /g)!.length).toBeLessThan(160);
   expect(receipt.window(receipt.height - 1000, 1000)).toContain('<use ');
   const file = await receipt.svgFile(); const svg = await file.text();
   expect(svg.match(/<use /g)).toHaveLength(3600);
   expect(svg.match(/id="tile-/g)).toHaveLength(3);
-  expect(file.size).toBeLessThan(400000);
+  expect(file.size).toBeLessThan(650000);
 });
 
 it('encodes valid PNG chunks and one continuous zlib stream across stripes', async () => {

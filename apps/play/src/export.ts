@@ -1,13 +1,15 @@
-import { contour, tileColor, WIDTH, type Pavement, type Tile } from '../../../packages/play-core';
+import { WIDTH, type Pavement, type Tile } from '../../../packages/play-core';
 import { encodePNG } from './png';
+import { TILE_BLEED, tileImages } from './tile-assets';
 
 export const PNG_MAX_PIXELS = 32000000;
 export const PNG_MAX_HEIGHT = 65536;
-const UNIT = 44, BUCKET_ROWS = 32;
+// Keep the exported photo at 688px even when the playable board grows wider.
+const UNIT = 264 / WIDTH, BUCKET_ROWS = 32;
 const pauseTask = () => new Promise<void>(resolve => setTimeout(resolve, 0));
-const definitions = [[2, 1], [1, 2], [1, 1]].map(([w, h]) => {
-  const path = contour(w, h).map(([x, y], i) => `${i ? 'L' : 'M'}${(x * UNIT * .96).toFixed(2)},${(-y * UNIT * .96).toFixed(2)}`).join(' ') + 'Z';
-  return `<path id="tile-${w}-${h}" d="${path}" stroke="#fffcf2" stroke-width="1" stroke-linejoin="round"/>`;
+const definitions = [[2, 1, tileImages.horizontal], [1, 2, tileImages.vertical], [1, 1, tileImages.center]].map(([w, h, image]) => {
+  const width = (Number(w) + TILE_BLEED) * UNIT, height = (Number(h) + TILE_BLEED) * UNIT;
+  return `<image id="tile-${w}-${h}" x="${-width / 2}" y="${-height / 2}" width="${width}" height="${height}" preserveAspectRatio="none" xlink:href="${image}"/>`;
 }).join('');
 
 export function photoSize(width: number, height: number) { return { width: width * 2, height: height * 2 }; }
@@ -25,7 +27,8 @@ export class Receipt {
   private patternHeight: number;
   constructor(board: Pavement, readonly started: Date) {
     this.tiles = board.tiles.slice(); this.patternHeight = Math.max(3, board.height) * UNIT;
-    this.height = this.patternHeight + 112;
+    // Nine columns give fractional cell pixels; the encoded PNG still needs whole rows.
+    this.height = Math.ceil(this.patternHeight + 112);
     for (const tile of this.tiles) {
       const key = Math.floor(tile.y / BUCKET_ROWS);
       if (!this.buckets.has(key)) this.buckets.set(key, []);
@@ -43,11 +46,11 @@ export class Receipt {
   private tileSVG(tile: Tile) {
     const x = 40 + (tile.x + tile.w / 2) * UNIT;
     const y = 76 + this.patternHeight - (tile.y + tile.h / 2) * UNIT;
-    return `<use xlink:href="#tile-${tile.w}-${tile.h}" x="${x}" y="${y}" fill="${tileColor(tile)}"/>`;
+    return `<use xlink:href="#tile-${tile.w}-${tile.h}" x="${x}" y="${y}"/>`;
   }
   window(top: number, height: number, scale = 1) {
-    const minimum = (76 + this.patternHeight - top - height) / UNIT;
-    const maximum = (76 + this.patternHeight - top) / UNIT;
+    const minimum = (76 + this.patternHeight - top - height) / UNIT - TILE_BLEED / 2;
+    const maximum = (76 + this.patternHeight - top) / UNIT + TILE_BLEED / 2;
     const parts = [this.header(top, height, scale)];
     for (let bucket = Math.max(0, Math.floor((minimum - 2) / BUCKET_ROWS)); bucket <= Math.floor(maximum / BUCKET_ROWS); bucket++) {
       for (const tile of this.buckets.get(bucket) ?? []) {

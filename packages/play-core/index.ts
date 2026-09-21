@@ -1,4 +1,6 @@
-export const WIDTH = 6;
+// Three 3-cell-wide interlocking motifs fit side by side.
+export const WIDTH = 9;
+export const SPAWN_X = Math.floor((WIDTH - 2) / 2);
 export const MAX_SESSION_BLOCKS = 24 * 60 * 60 * 2;
 export type Rotation = 0 | 1 | 2 | 3;
 export interface Tile { id: number; x: number; y: number; w: number; h: number; rotation: Rotation; white: boolean; }
@@ -11,6 +13,7 @@ export class Pavement {
   private cells = new Map<string, number>();
   private columns = Array<number>(WIDTH).fill(0);
   private floor = 0;
+  get floorY() { return this.floor; }
   height = 0;
   private placedBlocks = 0;
   get greens() { return this.placedBlocks; }

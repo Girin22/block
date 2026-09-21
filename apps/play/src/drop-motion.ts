@@ -9,9 +9,28 @@ export function dropProgress(progress: number) {
   return 0.18 * t + 0.82 * t * t;
 }
 
-/** A brief, restrained squeeze; never displace the tile's planted lower edge. */
-export function landingScale(age: number) {
-  if (age <= 0 || age >= 0.2) return 1;
-  const t = age / 0.2;
-  return 1 - 0.065 * Math.sin(Math.PI * t) * (1 - t);
+/**
+ * Pavers are rigid: nothing squashes on contact. Height is shown only by how near the block is to
+ * the camera, easing to exactly 1 as it meets the ground so the joints close flush. Cells in.
+ */
+/**
+ * The white filler is lowered in the same way as a placed block: a short beat after the block that
+ * closed the gap, it comes down from just above and stops dead. No growth, overshoot, or bounce.
+ */
+export const FILL_DELAY = 0.06, FILL_SECONDS = 0.2, FILL_HEIGHT = 1.2;
+export const FILL_LANDS = FILL_DELAY + FILL_SECONDS;
+
+/** Remaining height above the slot, in cells. */
+export function fillGap(age: number) {
+  return FILL_HEIGHT * (1 - dropProgress((age - FILL_DELAY) / FILL_SECONDS));
+}
+
+/** Hidden during the beat, then solid well before contact so the landing itself is never a fade. */
+export function fillOpacity(age: number) {
+  return Math.max(0, Math.min(1, (age - FILL_DELAY) / (FILL_SECONDS * 0.35)));
+}
+
+export function liftScale(gap: number) {
+  const t = Math.max(0, Math.min(1, gap / 1.2));
+  return 1 + 0.035 * t * t * (3 - 2 * t);
 }
