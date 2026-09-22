@@ -50,6 +50,8 @@ export class PlayScene {
   private last = 0;
   private animationTime = 0;
   private dropping?: { from: THREE.Vector3; to: THREE.Vector3; elapsed: number; duration: number; done: () => void };
+  // Block motion is the game itself and stays the same everywhere. Only the camera, whose movement
+  // covers the whole screen, honours the system's reduce-motion setting by jumping instead of gliding.
   private reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
   private observer: ResizeObserver;
   /** Fires as a white filler seats on screen; the game plays its sound here. */
@@ -190,8 +192,7 @@ export class PlayScene {
       mesh.userData.born = this.animationTime + order * FILL_STAGGER; mesh.userData.sound = order % soundEvery === 0;
       mesh.userData.spin = mesh.rotation.z; order++;
       const material = this.material(image).clone(); material.opacity = 0; mesh.material = material;
-      // With reduced motion the filler still arrives in sequence, but only fades in where it sits.
-      const shadow = this.fallingShadow.spawn(image); shadow.renderOrder = tile.id - .5; shadow.visible = !this.reduced;
+      const shadow = this.fallingShadow.spawn(image); shadow.renderOrder = tile.id - .5;
       mesh.userData.shadow = shadow; this.scene.add(shadow);
     }
   }
@@ -248,20 +249,20 @@ export class PlayScene {
     this.ghost.position.set(p.x + p.w / 2, p.y + p.h / 2, 0.015); this.ghost.rotation.z = this.spin;
     if (this.dropping) {
       const drop = this.dropping; drop.elapsed += dt;
-      const t = Math.min(1, drop.elapsed / (this.reduced ? 0.01 : drop.duration));
+      const t = Math.min(1, drop.elapsed / drop.duration);
       this.active.position.lerpVectors(drop.from, drop.to, dropProgress(t));
       if (t === 1) { this.dropping = undefined; drop.done(); }
     } else {
       const targetX = p.x + p.w / 2;
-      this.active.position.x += (targetX - this.active.position.x) * (this.reduced ? 1 : 1 - Math.exp(-dt * 26));
+      this.active.position.x += (targetX - this.active.position.x) * (1 - Math.exp(-dt * 26));
       this.active.position.y = this.activeY + size(this.rotation).h / 2;
       this.active.position.z = 0.12;
       this.ghost.visible = !this.board.atLimit && !this.paused && this.guide.ready;
     }
     // A rigid paver lowered into its socket: slightly nearer the camera in the air, exact size on contact.
-    const lift = this.reduced ? 1 : liftScale(this.active.position.y - size(this.rotation).h / 2 - p.y);
+    const lift = liftScale(this.active.position.y - size(this.rotation).h / 2 - p.y);
     this.active.scale.set(lift, lift, 1);
-    this.active.rotation.z += (this.spin - this.active.rotation.z) * (this.reduced ? 1 : 1 - Math.exp(-dt * 28));
+    this.active.rotation.z += (this.spin - this.active.rotation.z) * (1 - Math.exp(-dt * 28));
     this.fallingShadow.update(this.active, this.rotation, this.spin, this.board.landingFrom(this.x, this.activeY, this.rotation).y);
     for (const [id, mesh] of this.settled) {
       if (mesh.position.y < this.center - this.halfHeight - 3) { this.seat(mesh); this.scene.remove(mesh); this.settled.delete(id); continue; }
@@ -270,9 +271,8 @@ export class PlayScene {
       // The white filler is lowered straight onto its slot: accelerating, rigid, flush on contact.
       const age = this.animationTime - mesh.userData.born;
       if (age >= FILL_LANDS) { this.seat(mesh); if (mesh.userData.sound && dt > 0) this.onFillSeat?.(); continue; }
-      const altitude = this.reduced ? 0 : fillAltitude(age), opacity = fillOpacity(age), lift = 1 + FILL_LIFT * altitude;
+      const altitude = fillAltitude(age), opacity = fillOpacity(age), lift = 1 + FILL_LIFT * altitude;
       (mesh.material as THREE.MeshBasicMaterial).opacity = opacity;
-      if (this.reduced) { mesh.position.z = .1; continue; }
       mesh.position.y = mesh.userData.baseY + mesh.userData.height / 2 + fillGap(age); mesh.position.z = .1; mesh.scale.set(lift, lift, 1);
       // Slightly turned on arrival, straight by the time it is wedged in.
       const tilt = fillTilt(age); mesh.rotation.z = mesh.userData.spin + tilt;
