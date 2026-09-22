@@ -3,7 +3,7 @@ async (page) => {
   page.on('pageerror', error => errors.push(error.message));
   page.on('requestfailed', request => { if (!request.failure()?.errorText.includes('ABORTED')) failedRequests.push(request.url()); });
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('http://127.0.0.1:5173/');
+  await page.goto('http://127.0.0.1:5173/?receipt');
   await page.locator('#pause.icon-ready').waitFor({ timeout: 15000 });
   const button = page.locator('#pause'), icon = page.locator('#pause-animation');
   const initial = await icon.screenshot();
@@ -64,7 +64,7 @@ async (page) => {
   await page.locator('#export').click();
   await page.waitForFunction(() => !document.querySelector('#receipt-save').disabled);
   if (await page.locator('dialog[open]').count() !== 1) throw new Error('Export did not open popup');
-  if (!(await page.locator('#receipt-image text').textContent()).includes('45 piece')) throw new Error('Export lost paused tiles');
+  if (!(await page.locator('#receipt-image text').textContent()).includes('45조각')) throw new Error('Export lost paused tiles');
   await page.screenshot({ path: 'output/playwright/pause-export-mobile.png' });
   await page.locator('#receipt-back').click();
   if (await button.getAttribute('aria-pressed') !== 'true') throw new Error('Closing export resumed game');
@@ -83,10 +83,10 @@ async (page) => {
   await button.click(); await page.waitForTimeout(80);
   await button.click(); await page.waitForTimeout(80);
   await page.emulateMedia({ reducedMotion: 'no-preference' });
-  await page.goto('http://127.0.0.1:5173/?stress=172800');
+  await page.goto('http://127.0.0.1:5173/?stress=172800&receipt');
   if (!(await button.isDisabled())) throw new Error('Limit allows resume');
   await page.locator('#export').click(); await page.locator('#receipt-back').click();
-  await page.goto('http://127.0.0.1:5173/');
+  await page.goto('http://127.0.0.1:5173/?receipt');
   if (errors.length || failedRequests.length) throw new Error(JSON.stringify({ errors, failedRequests }));
   return { sizes, lottieForwardReverse: true, fastToggles: true, counts: { green: 36, white: 9 }, exportPopup: true, closeStaysPaused: true, saveResets: true, cap: true, errors };
 }

@@ -6,6 +6,11 @@ export type Rotation = 0 | 1 | 2 | 3;
 // odd board, a one-wide upright block can.
 export const SPAWN_ROTATION: Rotation = 1;
 export const SPAWN_X = Math.floor((WIDTH - 1) / 2);
+/** One cell is half a real interlocking paver: 225 × 112.5 mm, so 11.25 cm along the path. */
+export const CELL_METERS = 0.1125;
+/** Length of path actually paved: every filled cell, green or white, spread across the full width. */
+export function pathMeters(cells: number) { return cells / WIDTH * CELL_METERS; }
+export function formatMeters(cells: number) { return `${pathMeters(cells).toFixed(1)}미터`; }
 export interface Tile { id: number; x: number; y: number; w: number; h: number; rotation: Rotation; white: boolean; }
 export function size(rotation: Rotation) { return rotation % 2 ? { w: 1, h: 2 } : { w: 2, h: 1 }; }
 export const COLORS = ['#408d6c', '#4b9976', '#398665', '#519a78'];
@@ -19,7 +24,10 @@ export class Pavement {
   get floorY() { return this.floor; }
   height = 0;
   private placedBlocks = 0;
+  private filledCells = 0;
   get greens() { return this.placedBlocks; }
+  /** Filled cells, white fillers included. */
+  get filled() { return this.filledCells; }
   get atLimit() { return this.placedBlocks >= MAX_SESSION_BLOCKS; }
   landing(x: number, rotation: Rotation) {
     const { w, h } = size(rotation);
@@ -28,11 +36,11 @@ export class Pavement {
     for (let column = x; column < x + w; column++) y = Math.max(y, this.columns[column]);
     return { x, y, w, h, rotation };
   }
+  /** The floor only limits where the active block can land. Every cell stays known so that a
+   *  space the player closes off later can be filled all the way down, even below the screen. */
   advanceFloor(y: number) {
     if (y <= this.floor) return;
     this.floor = Math.floor(y);
-    // Full tile history remains for export; collision data only needs the active band.
-    for (const key of this.cells.keys()) if (Number(key.split(',')[1]) < this.floor - 1) this.cells.delete(key);
   }
   canPlace(x: number, y: number, rotation: Rotation): boolean {
     const { w, h } = size(rotation);
@@ -78,27 +86,80 @@ export class Pavement {
     const tile = this.insert({ x, y, ...size(rotation), rotation, white: false });
     this.placedBlocks++;
     const added = [tile];
-    // Any isolated single cell qualifies; diagonals and neighboring tile types do not matter.
-    // Board walls and the active floor also close a side.
-    const blocked = (x: number, y: number) => x < 0 || x >= WIDTH || y < this.floor || this.cells.has(`${x},${y}`);
-    for (let cy = Math.max(this.floor, tile.y - 1); cy <= tile.y + tile.h; cy++) {
-      for (let cx = Math.max(0, tile.x - 1); cx <= Math.min(WIDTH - 1, tile.x + tile.w); cx++) {
-        if (this.cells.has(`${cx},${cy}`)) continue;
-        if (blocked(cx - 1, cy) && blocked(cx + 1, cy) && blocked(cx, cy - 1) && blocked(cx, cy + 1)) {
-          added.push(this.insert({ x: cx, y: cy, w: 1, h: 1, rotation: 0, white: true }));
-        }
-      }
+    // Every empty space this block just sealed off is paved with white fillers, lowest row first.
+    for (const region of this.enclosedAround(tile)) {
+      for (const piece of tileRegion(region)) added.push(this.insert({ ...piece, white: true }));
     }
     return added;
   }
+  private empty(x: number, y: number) { return x >= 0 && x < WIDTH && y >= 0 && !this.cells.has(`${x},${y}`); }
+  /** Empty regions touching the tile that can no longer reach the open sky. Walls, the ground and
+   *  tiles bound a region; the camera floor does not, so a space can extend below the screen. */
+  private enclosedAround(tile: Tile): Cell[][] {
+    const regions: Cell[][] = [], seen = new Set<string>();
+    for (let cy = tile.y - 1; cy <= tile.y + tile.h; cy++) {
+      for (let cx = tile.x - 1; cx <= tile.x + tile.w; cx++) {
+        const edge = cy < tile.y || cy >= tile.y + tile.h, side = cx < tile.x || cx >= tile.x + tile.w;
+        if (edge === side || !this.empty(cx, cy) || seen.has(`${cx},${cy}`)) continue;
+        const region = this.flood(cx, cy, seen);
+        if (region) regions.push(region);
+      }
+    }
+    return regions;
+  }
+  /** Highest cells first: an open region reaches the sky quickly, an enclosed one is walked whole. */
+  private flood(x: number, y: number, seen: Set<string>): Cell[] | undefined {
+    const rows = new Map<number, Cell[]>(); let top = y;
+    const push = (x: number, y: number) => {
+      const key = `${x},${y}`; if (seen.has(key)) return; seen.add(key);
+      let row = rows.get(y); if (!row) rows.set(y, row = []); row.push([x, y]); if (y > top) top = y;
+    };
+    push(x, y);
+    const cells: Cell[] = [];
+    while (true) {
+      while (top >= 0 && !rows.get(top)?.length) top--;
+      if (top < 0) return cells;
+      const [cx, cy] = rows.get(top)!.pop()!;
+      // Nothing sits at or above the stack's height, so a region that gets there is open.
+      if (cy >= this.height) return undefined;
+      cells.push([cx, cy]);
+      if (this.empty(cx - 1, cy)) push(cx - 1, cy);
+      if (this.empty(cx + 1, cy)) push(cx + 1, cy);
+      if (this.empty(cx, cy - 1)) push(cx, cy - 1);
+      if (this.empty(cx, cy + 1)) push(cx, cy + 1);
+    }
+  }
   private insert(data: Omit<Tile, 'id'>): Tile {
     const tile = { ...data, id: this.tiles.length + 1 }; this.tiles.push(tile);
+    this.filledCells += tile.w * tile.h;
     for (let x = tile.x; x < tile.x + tile.w; x++) {
       for (let y = tile.y; y < tile.y + tile.h; y++) this.cells.set(`${x},${y}`, tile.id);
       this.columns[x] = Math.max(this.columns[x], tile.y + tile.h);
     }
     this.height = Math.max(this.height, tile.y + tile.h); return tile;
   }
+}
+
+export type Cell = [number, number];
+export interface Piece { x: number; y: number; w: number; h: number; rotation: Rotation; }
+
+/**
+ * Paves a sealed region with white 1×1, 2×1 and 1×2 fillers, bottom row first and left to right, in
+ * the order they will be laid. Where both long shapes fit, the choice alternates on a checkerboard so
+ * the joints weave like the green pattern instead of lining up into long seams.
+ */
+export function tileRegion(cells: readonly Cell[]): Piece[] {
+  const free = new Set(cells.map(([x, y]) => `${x},${y}`));
+  const pieces: Piece[] = [];
+  for (const [x, y] of cells.slice().sort((a, b) => a[1] - b[1] || a[0] - b[0])) {
+    if (!free.has(`${x},${y}`)) continue;
+    const up = free.has(`${x},${y + 1}`), right = free.has(`${x + 1},${y}`);
+    const tall = up && (!right || (x + y) % 2 === 1);
+    const w = !tall && right ? 2 : 1, h = tall ? 2 : 1;
+    for (let dx = 0; dx < w; dx++) for (let dy = 0; dy < h; dy++) free.delete(`${x + dx},${y + dy}`);
+    pieces.push({ x, y, w, h, rotation: h === 2 ? 1 : 0 });
+  }
+  return pieces;
 }
 
 /** Rotationally symmetric edge warp: the curved keys fit in every orientation. */

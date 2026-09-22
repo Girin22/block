@@ -9,13 +9,13 @@ async (page) => {
   const receipt = async () => {
     await page.waitForTimeout(450);
     await page.getByRole('button', { name: '일시정지', exact: true }).click();
-    await page.getByRole('button', { name: 'Export', exact: true }).click();
+    await page.getByRole('button', { name: '내보내기', exact: true }).click();
     await page.locator('#receipt-image svg').waitFor();
     return page.locator('#receipt-image use').evaluateAll(nodes => nodes.map(node => ({
       x: node.getAttribute('x'), shape: node.getAttribute('xlink:href'),
     })));
   };
-  await page.goto('http://127.0.0.1:5173/');
+  await page.goto('http://127.0.0.1:5173/?receipt');
   await page.waitForTimeout(200);
   // Start far below the active tile. Sideways jitter exceeds half a cell.
   await swipe(100, 360, 135, 740);

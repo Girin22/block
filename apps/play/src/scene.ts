@@ -1,9 +1,9 @@
 import * as THREE from 'three';
 import { followCamera } from './camera-motion';
-import { dropDuration, dropProgress, fillAltitude, fillGap, fillOpacity, FILL_LANDS, FILL_LIFT, liftScale } from './drop-motion';
+import { dropDuration, dropProgress, fillAltitude, fillGap, fillOpacity, fillTilt, FILL_LANDS, FILL_LIFT, FILL_STAGGER, liftScale } from './drop-motion';
 import { size, WIDTH, SPAWN_ROTATION, SPAWN_X, type Pavement, type Rotation, type Tile } from '../../../packages/play-core';
 
-import { TILE_BLEED, tileImages } from './tile-assets';
+import { TILE_BLEED, tileImage, tileImages, type TileImage } from './tile-assets';
 import { FallingShadow } from './falling-shadow';
 import { LandingGuide } from './landing-guide';
 import { wetTint, type Rain } from './rain';
@@ -52,20 +52,21 @@ export class PlayScene {
   private dropping?: { from: THREE.Vector3; to: THREE.Vector3; elapsed: number; duration: number; done: () => void };
   private reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
   private observer: ResizeObserver;
+  /** Fires as a white filler seats on screen; the game plays its sound here. */
+  onFillSeat?: () => void;
   constructor(private canvas: HTMLCanvasElement, private board: Pavement, private onAutoLand: () => void, private rain?: Rain) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
     this.scene.background = DRY_GROUND.clone();
     this.fallingShadow = new FallingShadow(); this.scene.add(this.fallingShadow.mesh);
-    this.active = new THREE.Mesh(this.dominoes[0], this.material(false, 0)); this.scene.add(this.active);
+    this.active = new THREE.Mesh(this.dominoes[0], this.material('horizontal')); this.scene.add(this.active);
     this.ghost = new THREE.Mesh(this.dominoes[0], new THREE.MeshBasicMaterial({ map: this.guide.texture('horizontal'), transparent: true, depthWrite: false, toneMapped: false }));
     this.ghost.scale.z = 0.04; this.scene.add(this.ghost);
     this.observer = new ResizeObserver(() => this.resize()); this.observer.observe(canvas); this.resize();
     this.spawn();
     this.frame(0);
   }
-  private material(white: boolean, rotation: Rotation) {
-    const key = white ? 'center' : rotation % 2 ? 'vertical' : 'horizontal';
+  private material(key: TileImage) {
     if (!this.materials.has(key)) {
       const texture = new THREE.TextureLoader().load(tileImages[key]);
       texture.colorSpace = THREE.SRGBColorSpace;
@@ -77,7 +78,7 @@ export class PlayScene {
   }
   private orient() {
     this.active.geometry = this.ghost.geometry = this.dominoes[this.rotation];
-    const material = this.material(false, this.rotation);
+    const material = this.material(this.rotation % 2 ? 'vertical' : 'horizontal');
     this.active.material = material;
     (this.ghost.material as THREE.MeshBasicMaterial).map = this.guide.texture(this.rotation % 2 ? 'vertical' : 'horizontal');
   }
@@ -88,7 +89,7 @@ export class PlayScene {
       let mesh = this.frameTiles.get(key);
       if (!mesh) {
         const rotation = vertical ? 1 : 0;
-        mesh = new THREE.Mesh(this.dominoes[rotation], this.material(false, rotation));
+        mesh = new THREE.Mesh(this.dominoes[rotation], this.material(vertical ? 'vertical' : 'horizontal'));
         mesh.rotation.z = rotation * Math.PI / 2; mesh.renderOrder = -1;
         this.scene.add(mesh); this.frameTiles.set(key, mesh);
       }
@@ -101,9 +102,8 @@ export class PlayScene {
       add(`left-${row}`, -.5, row * 2 + 1, true);
       add(`right-${row}`, WIDTH + .5, row * 2 + 1, true);
     }
-    for (let column = -2; column < WIDTH + 2; column += 2) {
-      add(`bottom-${column}`, column + 1, this.board.floorY - .5, false);
-    }
+    // The bottom row belongs to the real ground only. Higher up, the pavement's own gaps show.
+    if (this.center - this.halfHeight < 1) for (let column = -2; column < WIDTH + 2; column += 2) add(`bottom-${column}`, column + 1, -.5, false);
     for (const [key, mesh] of this.frameTiles) {
       if (!visible.has(key)) { this.scene.remove(mesh); this.frameTiles.delete(key); }
     }
@@ -173,18 +173,24 @@ export class PlayScene {
   }
   /** Pass animate = false for tiles that were already part of the board (restored fixtures). */
   add(tiles: Tile[], animate = true) {
+    // Fillers of one placement are laid in order, a beat apart; a long run only sounds now and then.
+    const whites = tiles.filter(tile => tile.white).length, soundEvery = Math.max(1, Math.ceil(whites / 24));
+    let order = 0;
     for (const tile of tiles) {
-      const mesh = new THREE.Mesh(tile.white ? this.square : this.dominoes[tile.rotation], this.material(tile.white, tile.rotation));
+      const image = tileImage(tile);
+      const mesh = new THREE.Mesh(tile.white && tile.w === 1 && tile.h === 1 ? this.square : this.dominoes[tile.rotation], this.material(image));
       mesh.position.set(tile.x + tile.w / 2, tile.y + tile.h / 2, 0);
       mesh.rotation.z = tile.rotation * Math.PI / 2;
       mesh.renderOrder = tile.id;
-      mesh.userData.born = this.animationTime; mesh.userData.white = tile.white;
+      mesh.userData.born = this.animationTime; mesh.userData.white = tile.white; mesh.userData.image = image;
       mesh.userData.baseY = tile.y; mesh.userData.height = tile.h;
       this.scene.add(mesh); this.settled.set(tile.id, mesh);
       if (!tile.white || !animate || this.reduced) continue;
       // Lowered from just above: its own fading material and shadow exist only until it seats.
-      const material = this.material(true, 0).clone(); material.opacity = 0; mesh.material = material;
-      const shadow = this.fallingShadow.spawnSquare(); shadow.renderOrder = tile.id - .5;
+      mesh.userData.born = this.animationTime + order * FILL_STAGGER; mesh.userData.sound = order % soundEvery === 0;
+      mesh.userData.spin = mesh.rotation.z; order++;
+      const material = this.material(image).clone(); material.opacity = 0; mesh.material = material;
+      const shadow = this.fallingShadow.spawn(image); shadow.renderOrder = tile.id - .5;
       mesh.userData.shadow = shadow; this.scene.add(shadow);
     }
   }
@@ -192,9 +198,9 @@ export class PlayScene {
     const shadow = mesh.userData.shadow as THREE.Mesh | undefined;
     if (!shadow) return;
     this.scene.remove(shadow); (shadow.material as THREE.Material).dispose();
-    (mesh.material as THREE.Material).dispose(); mesh.material = this.material(true, 0);
-    mesh.position.set(mesh.position.x, mesh.userData.baseY + .5, 0); mesh.scale.set(1, 1, 1);
-    mesh.userData.shadow = undefined;
+    (mesh.material as THREE.Material).dispose(); mesh.material = this.material(mesh.userData.image as TileImage);
+    mesh.position.set(mesh.position.x, mesh.userData.baseY + mesh.userData.height / 2, 0); mesh.scale.set(1, 1, 1);
+    mesh.rotation.z = mesh.userData.spin; mesh.userData.shadow = undefined;
   }
   pause(value: boolean) {
     this.paused = value;
@@ -262,12 +268,14 @@ export class PlayScene {
       if (!shadow) continue;
       // The white filler is lowered straight onto its slot: accelerating, rigid, flush on contact.
       const age = this.animationTime - mesh.userData.born;
-      if (age >= FILL_LANDS) { this.seat(mesh); continue; }
+      if (age >= FILL_LANDS) { this.seat(mesh); if (mesh.userData.sound && dt > 0) this.onFillSeat?.(); continue; }
       const altitude = fillAltitude(age), opacity = fillOpacity(age), lift = 1 + FILL_LIFT * altitude;
       (mesh.material as THREE.MeshBasicMaterial).opacity = opacity;
-      mesh.position.y = mesh.userData.baseY + .5 + fillGap(age); mesh.position.z = .1; mesh.scale.set(lift, lift, 1);
+      mesh.position.y = mesh.userData.baseY + mesh.userData.height / 2 + fillGap(age); mesh.position.z = .1; mesh.scale.set(lift, lift, 1);
+      // Slightly turned on arrival, straight by the time it is wedged in.
+      const tilt = fillTilt(age); mesh.rotation.z = mesh.userData.spin + tilt;
       // The shadow, not the travel, carries the height: 1.2 cells is its full separation.
-      this.fallingShadow.updateSquare(shadow, mesh, 1.2 * altitude, opacity);
+      this.fallingShadow.updateSpawned(shadow, mesh, 1.2 * altitude, opacity, tilt);
     }
     this.renderer.render(this.scene, this.camera); this.raf = requestAnimationFrame(this.frame);
   };

@@ -1,4 +1,7 @@
-:root{font-family:Arial,'Noto Sans KR',sans-serif;background:#211f1f;color:#345846;font-synthesis:none;-webkit-font-smoothing:antialiased}
+/* Latin letters set in Jost; everything else, digits included, in the handwritten Hangul face. */
+@font-face{font-family:'Jost';src:url('../../../assets/fonts/Jost/Jost-VariableFont_wght.ttf') format('truetype');font-weight:100 900;font-display:swap;unicode-range:U+0041-005A,U+0061-007A,U+00C0-024F}
+@font-face{font-family:'GangBuJang';src:url('../../../assets/fonts/나눔손글씨 강부장님체.ttf') format('truetype');font-display:swap}
+:root{font-family:'Jost','GangBuJang',sans-serif;background:#211f1f;color:#345846;font-synthesis:none;-webkit-font-smoothing:antialiased}
 *{box-sizing:border-box}
 html,body,#app{width:100%;height:100%;margin:0;overflow:hidden;overscroll-behavior:none}
 button{font:inherit;color:inherit;border:0;cursor:pointer;-webkit-tap-highlight-color:transparent}
@@ -18,27 +21,30 @@ button:focus-visible{outline:2px solid #a7c897;outline-offset:4px}
 #pause-animation{display:block;width:40px;height:40px;opacity:0;pointer-events:none}
 #pause.icon-ready #pause-animation{opacity:1}
 #pause-actions{position:absolute;inset:0;z-index:2;pointer-events:none;color:#faf9f6}
-.pause-content{position:absolute;top:max(68px,calc(58px + env(safe-area-inset-top)));bottom:50%;left:50%;width:min(240px,70%);transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:8px}
-.pause-stat{flex:1;min-height:44px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;font-size:clamp(15px,2.1dvh,18px);line-height:1.15;font-variant-numeric:tabular-nums}
-.pause-stat img{width:auto;height:32px;object-fit:contain}
-.pause-stat img.center-icon{width:20px;height:20px}
+/* Ends above the screen's middle, where the top of the stack sits, so nothing overlaps the pavement. */
+.pause-content{position:absolute;top:max(68px,calc(58px + env(safe-area-inset-top)));bottom:54%;left:50%;width:min(240px,70%);transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:6px}
+.pause-stat{flex:1;min-height:44px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;font-size:clamp(22px,3dvh,28px);line-height:1.1}
+.pause-stat img{width:auto;height:56px;object-fit:contain;filter:drop-shadow(-3px 5px 5px #0006)}
+.pause-stat img.center-icon{width:36px;height:36px}
 /* Leaving is quick so resuming never feels held back. Entering rises from further below and the last
    item lands at 800ms (180ms delay + 620ms). The pause icon itself finishes earlier, at 300ms. */
-.pause-stat,#export,#session-limit{opacity:0;transform:translateY(64px);transition:opacity 220ms ease-out,transform 280ms cubic-bezier(.4,0,.8,.4);will-change:opacity,transform}
-.is-paused .pause-stat,.is-paused #export,.is-paused #session-limit{opacity:1;transform:translateY(0);transition:opacity 520ms cubic-bezier(.22,.61,.36,1),transform 620ms cubic-bezier(.35,.6,.45,1)}
+.pause-stat,#export,#session-limit,#export-status{opacity:0;transform:translateY(64px);transition:opacity 220ms ease-out,transform 280ms cubic-bezier(.4,0,.8,.4);will-change:opacity,transform}
+.is-paused .pause-stat,.is-paused #export,.is-paused #session-limit,.is-paused #export-status{opacity:1;transform:translateY(0);transition:opacity 520ms cubic-bezier(.22,.61,.36,1),transform 620ms cubic-bezier(.35,.6,.45,1)}
 .is-paused .pause-stat:nth-child(2){transition-delay:60ms}
 .is-paused .pause-stat:nth-child(3){transition-delay:120ms}
-.is-paused #session-limit{transition-delay:180ms}
+.is-paused #session-limit,.is-paused #export-status{transition-delay:180ms}
 .is-paused #export{transition-delay:180ms;pointer-events:auto}
-#export{flex-shrink:0;min-width:100px;min-height:44px;padding:8px 16px;background:none;color:inherit;font-size:22px;text-decoration:underline;text-underline-offset:4px;touch-action:manipulation}
-#session-limit{font-size:12px;line-height:1.5;text-align:center;margin:0;flex-shrink:0}
+#export{flex-shrink:0;min-width:100px;min-height:44px;padding:8px 16px;background:none;color:inherit;font-size:26px;text-decoration:underline;text-underline-offset:5px;touch-action:manipulation}
+#export:disabled{cursor:wait;text-decoration:none;opacity:.7}
+#session-limit,#export-status{font-size:14px;line-height:1.5;text-align:center;margin:0;flex-shrink:0}
+#export-status:empty{display:none}
 dialog{border:1px solid #dce2d3;background:#f6f5ee;box-shadow:0 18px 70px #0003}
 dialog::backdrop{background:#17151555;backdrop-filter:blur(9px)}
 dialog button{display:block;width:100%;padding:20px 10px;border-radius:13px;background:none;font-size:15px;letter-spacing:1px}
 .render-error{position:absolute;inset:40% 25px auto;text-align:center;font-size:13px;line-height:1.8;color:#faf9f6}
-@media(max-height:600px){.pause-content{top:max(60px,calc(46px + env(safe-area-inset-top)));gap:2px}.pause-stat{gap:4px}.pause-stat img{height:24px}.pause-stat img.center-icon{width:16px;height:16px}#export{font-size:18px}}
-@media(max-height:480px){.pause-content{top:46px;gap:0}.pause-stat{min-height:32px;gap:2px;font-size:13px}.pause-stat img{height:18px}.pause-stat img.center-icon{width:14px;height:14px}#export{min-height:40px}}
-@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}.pause-stat,#export,#session-limit{transition:none;transform:none}}
+@media(max-height:600px){.pause-content{top:max(60px,calc(46px + env(safe-area-inset-top)));gap:2px}.pause-stat{gap:4px;font-size:18px}.pause-stat img{height:34px}.pause-stat img.center-icon{width:22px;height:22px}#export{font-size:20px}}
+@media(max-height:480px){.pause-content{top:46px;gap:0}.pause-stat{min-height:32px;gap:2px;font-size:15px}.pause-stat img{height:22px}.pause-stat img.center-icon{width:16px;height:16px}#export{min-height:40px}}
+@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}.pause-stat,#export,#session-limit,#export-status{transition:none;transform:none}}
 #receipt-status:empty{display:none}#receipt-panel .receipt-header{justify-content:flex-end}
 #receipt-image img{display:block;width:100%;height:auto;-webkit-touch-callout:default;user-select:auto}#receipt-save:disabled{opacity:.55;cursor:wait}
 

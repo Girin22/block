@@ -1,6 +1,6 @@
 import { DotLottie } from '@lottiefiles/dotlottie-web';
 import wasmURL from '@lottiefiles/dotlottie-web/dotlottie-player.wasm?url';
-import animationURL from '../../../assets/images/Flow 2.lottie?url';
+import animationURL from '../../../assets/images/pause.lottie?url';
 
 // Ship the runtime with the app; playback never relies on a remote CDN.
 DotLottie.setWasmUrl(wasmURL);
@@ -13,7 +13,7 @@ export class PauseIcon {
   private paused = false;
   private loaded = false;
   private reduced = matchMedia('(prefers-reduced-motion: reduce)');
-  private endFrame = 56;
+  private endFrame = 26;
 
   constructor(private button: HTMLButtonElement, canvas: HTMLCanvasElement) {
     this.player = new DotLottie({
@@ -22,7 +22,7 @@ export class PauseIcon {
     });
     this.player.addEventListener('load', () => {
       this.loaded = true;
-      this.endFrame = Math.min(56, this.player.totalFrames - 1);
+      this.endFrame = Math.max(1, this.player.totalFrames - 1);
       this.player.setSegment(0, this.endFrame);
       // Derive the rate from the clip so a re-exported animation keeps the same on-screen time.
       const clip = this.player.duration * this.endFrame / Math.max(1, this.player.totalFrames - 1);

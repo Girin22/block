@@ -2,7 +2,7 @@ async (page) => {
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('http://127.0.0.1:5173/');
+  await page.goto('http://127.0.0.1:5173/?receipt');
   const canvas = page.locator('#playfield');
   await canvas.waitFor(); await page.waitForTimeout(500);
   // The first block enters upright; one tap turns it on its side.

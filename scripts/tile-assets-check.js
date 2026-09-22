@@ -27,7 +27,7 @@ async (page) => {
     const png = await receiptPhoto(receipt);
     const svg = receipt.svg();
     const images = Array.from(new DOMParser().parseFromString(svg, 'image/svg+xml').querySelectorAll('image'));
-    if (images.length !== 3 || images.some(image => !image.getAttribute('xlink:href').startsWith('data:image/png;base64,'))) throw new Error('Export must embed all three images');
+    if (images.length !== 5 || images.some(image => !image.getAttribute('xlink:href').startsWith('data:image/png;base64,'))) throw new Error('Export must embed all five images');
     return { tiles: board.tiles.length, white: board.tiles.filter(tile => tile.white).length, pngBytes: png.size, pngWidth: receipt.width * 2 };
   });
   for (let rotation = 0; rotation < 4; rotation++) {

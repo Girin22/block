@@ -2,7 +2,7 @@ async (page) => {
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('http://127.0.0.1:5173/');
+  await page.goto('http://127.0.0.1:5173/?receipt');
   const canvas = page.locator('#playfield');
   await canvas.waitFor(); await page.waitForTimeout(600);
   const idle = await canvas.screenshot();
@@ -33,12 +33,12 @@ async (page) => {
   if (png.width !== 688) throw new Error('Wrong saved PNG width');
   // Closing the save preview preserves the session; confirming completion clears it.
   await page.locator('#receipt-back').click(); await page.locator('#export').click();
-  if (!(await page.locator('#receipt-image text').textContent()).includes('05 piece')) throw new Error('Closing export erased session');
+  if (!(await page.locator('#receipt-image text').textContent()).includes('05조각')) throw new Error('Closing export erased session');
   await page.waitForFunction(() => !document.querySelector('#receipt-save').disabled);
   await page.locator('#receipt-save').click(); await page.locator('#receipt-save').click();
   await page.locator('#pause').click(); await page.locator('#export').click();
-  if (!(await page.locator('#receipt-image text').textContent()).includes('· piece')) throw new Error('Save completion did not reset');
-  await page.goto('http://127.0.0.1:5173/'); await page.waitForTimeout(300);
+  if (!(await page.locator('#receipt-image text').textContent()).includes('00조각')) throw new Error('Save completion did not reset');
+  await page.goto('http://127.0.0.1:5173/?receipt'); await page.waitForTimeout(300);
   await page.mouse.move(195, 350); await page.mouse.down();
   await page.mouse.move(195, 380, { steps: 5 }); await page.waitForTimeout(500);
   const held = await canvas.screenshot(); await page.waitForTimeout(1100);
@@ -47,10 +47,10 @@ async (page) => {
   // No fast-drop swipe: regular automatic fall must still land by itself.
   await page.waitForTimeout(21000);
   await page.locator('#pause').click(); await page.locator('#export').click();
-  if (!(await page.locator('#receipt-image text').textContent()).includes('01 piece')) throw new Error('Automatic fall failed after release');
+  if (!(await page.locator('#receipt-image text').textContent()).includes('01조각')) throw new Error('Automatic fall failed after release');
   await page.locator('#receipt-back').click();
   await page.waitForTimeout(1000); await page.locator('#export').click();
-  if (!(await page.locator('#receipt-image text').textContent()).includes('01 piece')) throw new Error('Pause changed board');
+  if (!(await page.locator('#receipt-image text').textContent()).includes('01조각')) throw new Error('Pause changed board');
   await page.locator('#receipt-back').click(); await page.locator('#pause').click();
   await page.reload();
   if (errors.length) throw new Error(errors.join('\n'));

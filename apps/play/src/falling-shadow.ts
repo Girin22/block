@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { type Rotation } from '../../../packages/play-core';
-import { TILE_BLEED, tileImages } from './tile-assets';
+import { TILE_BLEED, tileImages, type TileImage } from './tile-assets';
 
 // Figma values at the source artwork's scale (approximately 148px per cell).
 const SOURCE_CELL = 148;
@@ -8,13 +8,14 @@ const BLUR = 41;
 const PADDING = Math.ceil(BLUR * 1.5);
 const OFFSET_X = -26 / SOURCE_CELL, OFFSET_Y = -40 / SOURCE_CELL;
 
-// Horizontal block, vertical block, and the square white filler.
+// Horizontal block, vertical block, then the three white fillers.
 const SHAPES = [
-  { url: tileImages.horizontal, w: 2, h: 1 },
-  { url: tileImages.vertical, w: 1, h: 2 },
-  { url: tileImages.center, w: 1, h: 1 },
-];
-const SQUARE = 2;
+  { key: 'horizontal', url: tileImages.horizontal, w: 2, h: 1 },
+  { key: 'vertical', url: tileImages.vertical, w: 1, h: 2 },
+  { key: 'center', url: tileImages.center, w: 1, h: 1 },
+  { key: 'whiteHorizontal', url: tileImages.whiteHorizontal, w: 2, h: 1 },
+  { key: 'whiteVertical', url: tileImages.whiteVertical, w: 1, h: 2 },
+] as const;
 
 /** One cached alpha mask per shape; no blur/filter work in the animation loop. */
 export class FallingShadow {
@@ -55,9 +56,15 @@ export class FallingShadow {
     this.mesh.rotation.z = active.rotation.z - spin;
   }
 
-  /** An extra shadow for a white filler lowering itself; it shares the cached mask and geometry. */
-  spawnSquare() { return new THREE.Mesh(this.geometries[SQUARE], this.material.clone()); }
-  updateSquare(shadow: THREE.Mesh, target: THREE.Mesh, gap: number, strength: number) { this.cast(shadow, SQUARE, target, gap, strength); }
+  /** An extra shadow for a white filler lowering itself; it shares the cached masks and geometry. */
+  spawn(image: TileImage) {
+    const index = SHAPES.findIndex(shape => shape.key === image);
+    const shadow = new THREE.Mesh(this.geometries[index], this.material.clone()); shadow.userData.shape = index;
+    return shadow;
+  }
+  updateSpawned(shadow: THREE.Mesh, target: THREE.Mesh, gap: number, strength: number, tilt = 0) {
+    this.cast(shadow, shadow.userData.shape, target, gap, strength); shadow.rotation.z = tilt;
+  }
 
   private cast(shadow: THREE.Mesh, index: number, target: THREE.Mesh, gap: number, strength: number) {
     const map = this.maps[index], material = shadow.material as THREE.MeshBasicMaterial;

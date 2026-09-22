@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 import './style.css';
-import { Pavement, SPAWN_ROTATION, SPAWN_X, type Rotation } from '../../../packages/play-core';
+import { formatMeters, Pavement, SPAWN_ROTATION, SPAWN_X, type Rotation } from '../../../packages/play-core';
 import { PlayScene } from './scene';
 import { PlaySound } from './sound';
 import { isDownSwipe, swipeAxis, type SwipeAxis } from './input';
@@ -8,7 +8,6 @@ import { downloadFile, Receipt, receiptPhoto } from './export';
 import { mountReceiptPreview } from './receipt-preview';
 import { PauseIcon } from './pause-icon';
 import { PlayTimer } from './play-timer';
-import { FILL_LANDS } from './drop-motion';
 import { tileImages } from './tile-assets';
 import { Rain } from './rain';
 import { RainAmbience } from './rain-sound';
@@ -18,10 +17,10 @@ document.querySelector('#app')!.innerHTML = `<main class="play">
   <canvas id="playfield" tabindex="0" aria-label="블록 쌓기. 좌우 스와이프로 이동, 탭으로 회전, 아래 스와이프로 배치."></canvas>
   <section id="pause-actions" aria-label="일시정지 기록" aria-hidden="true" inert>
     <div class="pause-content">
-      <div class="pause-stat" aria-label="플레이 시간"><img src="${tileImages.vertical}" alt=""/><span id="play-time">0min</span></div>
+      <div class="pause-stat" aria-label="깔린 길이"><span id="path-length">0.0미터</span></div>
       <div class="pause-stat" aria-label="놓은 초록 블록 수"><img src="${tileImages.vertical}" alt=""/><span id="green-count">0</span></div>
       <div class="pause-stat" aria-label="자동 채움 흰 블록 수"><img class="center-icon" src="${tileImages.center}" alt=""/><span id="white-count">0</span></div>
-      <button id="export">Export</button>
+      <button id="export">내보내기</button>
     </div>
   </section>
   <button id="pause" aria-label="일시정지" aria-pressed="false" aria-controls="pause-actions"><canvas id="pause-animation" width="40" height="40" aria-hidden="true"></canvas></button>
@@ -43,8 +42,16 @@ const saveButton = document.querySelector<HTMLButtonElement>('#receipt-save')!;
 const backButton = document.querySelector<HTMLButtonElement>('#receipt-back')!;
 const receiptStatus = document.querySelector<HTMLElement>('#receipt-status')!;
 const limitNote = document.createElement('p'); limitNote.id = 'session-limit'; limitNote.hidden = true;
-limitNote.textContent = '172,800개를 모두 놓았어요. Export에서 길을 저장해 주세요.';
-document.querySelector('#export')!.before(limitNote);
+limitNote.textContent = '172,800개를 모두 놓았어요. 내보내기로 길을 저장해 주세요.';
+const exportButton = document.querySelector<HTMLButtonElement>('#export')!;
+exportButton.before(limitNote);
+const exportStatus = document.createElement('p'); exportStatus.id = 'export-status'; exportStatus.setAttribute('role', 'status');
+exportButton.after(exportStatus);
+// The receipt preview popup is legacy: kept for the browser checks, reached only with ?receipt.
+const legacyReceipt = new URLSearchParams(location.search).has('receipt');
+let exporting = false;
+// Warm the handwriting face so the pause summary and the exported label never fall back.
+document.fonts?.load('16px GangBuJang').catch(() => {});
 let photo: File | undefined, photoURL: string | undefined;
 let photoGeneration = 0, savingPhoto = false, manualPhoto = false;
 let generationAbort: AbortController | undefined, disposePreview: (() => void) | undefined;
@@ -72,10 +79,10 @@ const sound = new PlaySound();
 let view: PlayScene;
 let x = SPAWN_X, rotation: Rotation = SPAWN_ROTATION;
 let gesture: { id: number; x: number; y: number; lastY: number; column: number; moved: boolean; lowered: boolean; axis?: SwipeAxis } | undefined;
-let fillSound: ReturnType<typeof setTimeout> | undefined;
 function createScene() {
   try {
     view = new PlayScene(canvas, board, drop, rain); view.aim(x, rotation);
+    view.onFillSeat = () => { if (!paused && !document.hidden) sound.place(true); };
     if (import.meta.env.DEV && board.tiles.length) view.add(board.tiles.filter(tile => tile.y >= board.height - 24), false);
   }
   catch (error) {
@@ -106,8 +113,6 @@ function drop() {
   const landing = board.landingFrom(column, view.activeY, orientation);
   view.drop(() => {
     const added = board.place(column, landing.y, orientation); view.add(added); sound.place();
-    // The filler is heard at the moment it seats, not when it first appears.
-    if (added.some(tile => tile.white)) fillSound = setTimeout(() => { if (!paused && !document.hidden) sound.place(true); }, FILL_LANDS * 1000);
     // A fresh piece always enters at the current camera's upper center.
     x = SPAWN_X; rotation = SPAWN_ROTATION; view.spawn();
     if (board.atLimit) pause();
@@ -168,10 +173,10 @@ function updatePauseUI() {
   pauseIcon.setPaused(paused);
 }
 function pause() {
-  cancelGesture(); clearTimeout(fillSound); playTimer.pause(); view?.pause(true); sound.pause();
+  cancelGesture(); playTimer.pause(); view?.pause(true); sound.pause();
   if (paused) return;
   paused = true;
-  document.querySelector('#play-time')!.textContent = `${Math.floor(playTimer.elapsed() / 60000)}min`;
+  document.querySelector('#path-length')!.textContent = formatMeters(board.filled);
   document.querySelector('#green-count')!.textContent = String(board.greens);
   document.querySelector('#white-count')!.textContent = String(board.tiles.length - board.greens);
   updatePauseUI();
@@ -190,7 +195,7 @@ function closeReceipt() {
   document.querySelector('#receipt-image')!.replaceChildren();
 }
 function resetSession() {
-  clearTimeout(fillSound); gesture = undefined; view?.dispose(); sound.reset(); rain?.clearMarks();
+  gesture = undefined; view?.dispose(); sound.reset(); rain?.clearMarks();
   board = new Pavement(); started = new Date(); x = SPAWN_X; rotation = SPAWN_ROTATION; playTimer.reset();
   limitNote.hidden = true; pauseButton.disabled = false;
   createScene(); view?.pause(paused);
@@ -199,8 +204,25 @@ pauseButton.addEventListener('click', () => { if (paused) resume(); else pause()
 document.addEventListener('keydown', event => {
   if (event.code === 'Escape' && paused && !menu.open) { event.preventDefault(); resume(); }
 });
-document.querySelector('#export')!.addEventListener('click', async () => {
-  if (!paused || menu.open) return;
+exportButton.addEventListener('click', async () => {
+  if (!paused || menu.open || exporting) return;
+  if (legacyReceipt) { void openReceipt(); return; }
+  // Save straight away: a transparent PNG of the whole pavement, then a fresh session.
+  exporting = true; exportButton.disabled = true; exportButton.textContent = '저장 중'; exportStatus.textContent = '';
+  try {
+    const receipt = new Receipt(board, started);
+    let file: File;
+    if (receipt.format === 'png' && typeof CompressionStream !== 'undefined') {
+      file = await receiptPhoto(receipt, undefined, value => { exportButton.textContent = `저장 중 ${Math.round(value * 100)}%`; })
+        .catch(() => receipt.svgFile());
+    } else file = await receipt.svgFile();
+    downloadFile(file);
+    resetSession(); resume();
+  } catch {
+    exportStatus.textContent = '저장하지 못했어요. 다시 시도해 주세요.';
+  } finally { exporting = false; exportButton.disabled = false; exportButton.textContent = '내보내기'; }
+});
+async function openReceipt() {
   generationAbort?.abort(); disposePreview?.();
   generationAbort = new AbortController();
   const signal = generationAbort.signal;
@@ -239,7 +261,7 @@ document.querySelector('#export')!.addEventListener('click', async () => {
     saveButton.textContent = '사진 준비 실패';
     receiptStatus.textContent = '사진을 만들지 못했어요. 닫고 다시 시도해 주세요.';
   }
-});
+}
 document.querySelector('#receipt-back')!.addEventListener('click', () => {
   menu.close('cancelled');
 });
@@ -277,10 +299,10 @@ menu.addEventListener('cancel', event => { if (savingPhoto) event.preventDefault
 menu.addEventListener('close', () => {
   closeReceipt();
   if (menu.returnValue === 'saved') resume();
-  else document.querySelector<HTMLButtonElement>('#export')!.focus();
+  else exportButton.focus();
 });
 document.addEventListener('visibilitychange', () => { if (document.hidden) pause(); });
-window.addEventListener('pagehide', () => { clearTimeout(fillSound); gesture = undefined; playTimer.pause(); sound.pause(); });
+window.addEventListener('pagehide', () => { gesture = undefined; playTimer.pause(); sound.pause(); });
 window.addEventListener('pageshow', event => {
   if (!event.persisted) return;
   // A full navigation back from the browser cache starts a fresh, unsaved canvas.

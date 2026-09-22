@@ -30,7 +30,7 @@ it('keeps a long preview bounded while full SVG retains every tile with shared e
   expect(receipt.window(receipt.height - 1000, 1000)).toContain('<use ');
   const file = await receipt.svgFile(); const svg = await file.text();
   expect(svg.match(/<use /g)).toHaveLength(3600);
-  expect(svg.match(/id="tile-/g)).toHaveLength(3);
+  expect(svg.match(/id="tile-/g)).toHaveLength(5);
   expect(file.size).toBeLessThan(650000);
 });
 

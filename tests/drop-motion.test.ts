@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dropDuration, dropProgress, fillAltitude, fillGap, fillOpacity, FILL_DELAY, FILL_HEIGHT, FILL_LANDS, liftScale } from '../apps/play/src/drop-motion';
+import { dropDuration, dropProgress, fillAltitude, fillGap, fillOpacity, fillTilt, gentle, FILL_DELAY, FILL_HEIGHT, FILL_LANDS, FILL_TILT, liftScale } from '../apps/play/src/drop-motion';
 
 describe('weighted drop animation', () => {
   it('accelerates monotonically and lands exactly without overshooting', () => {
@@ -27,14 +27,29 @@ describe('weighted drop animation', () => {
     expect(fillOpacity(FILL_DELAY)).toBe(0);
     expect(fillGap(FILL_LANDS)).toBeCloseTo(0, 10);
     expect(fillOpacity(FILL_LANDS)).toBe(1);
-    let previous = FILL_HEIGHT, speed = 0;
+    let previous = FILL_HEIGHT;
     for (let i = 1; i <= 100; i++) {
       const age = FILL_DELAY + (FILL_LANDS - FILL_DELAY) * i / 100, gap = fillGap(age);
       expect(gap).toBeGreaterThanOrEqual(0);
-      expect(previous - gap).toBeGreaterThan(speed - 1e-12);
-      speed = previous - gap; previous = gap;
+      expect(gap).toBeLessThanOrEqual(previous + 1e-12);
+      previous = gap;
       if (i >= 50) expect(fillOpacity(age)).toBe(1);
     }
+  });
+  it('settles on the gentle curve: slow in, slow out, symmetric, never overshooting', () => {
+    expect(gentle(0)).toBe(0);
+    expect(gentle(1)).toBe(1);
+    expect(gentle(0.5)).toBeCloseTo(0.5, 6);
+    expect(gentle(0.1)).toBeLessThan(0.1);
+    expect(gentle(0.9)).toBeGreaterThan(0.9);
+    let previous = 0;
+    for (let p = 0; p <= 1; p += 0.01) { expect(gentle(p)).toBeGreaterThanOrEqual(previous - 1e-12); previous = gentle(p); }
+  });
+  it('turns every filler the same way on arrival and straightens it exactly as it seats', () => {
+    expect(fillTilt(0)).toBeCloseTo(FILL_TILT * Math.PI / 180, 10);
+    expect(fillTilt(FILL_LANDS / 2)).toBeGreaterThan(0);
+    expect(Math.abs(fillTilt(FILL_LANDS))).toBeLessThan(1e-9);
+    expect(Math.abs(FILL_TILT)).toBeLessThan(10);
   });
   it('stays rigid: exact size on contact, a small steady lift in the air, never smaller than the slot', () => {
     expect(liftScale(0)).toBe(1);
