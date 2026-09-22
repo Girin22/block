@@ -31,8 +31,8 @@ button:focus-visible{outline:2px solid #a7c897;outline-offset:4px}
    0.08em below the box's centre, so the text is nudged up by that much to centre the ink itself.
    Digit-only rows are shorter still (0.51em), and the button keeps its 44px touch target through
    padding pulled back with negative margins, so its row is the height of its ink like the others. */
-.pause-content{--text-size:clamp(17px,3.3vh,28px);--text-size:clamp(17px,3.3dvh,28px);--gap:clamp(8px,1.6vh,14px);--gap:clamp(8px,1.6dvh,14px);--icon:clamp(30px,7vh,60px);--icon:clamp(30px,7dvh,60px);--small:clamp(20px,4.6vh,40px);--small:clamp(20px,4.6dvh,40px);--ink:calc(var(--text-size) * .67);--digits:calc(var(--text-size) * .51);
-  position:absolute;top:max(26px,calc(14px + env(safe-area-inset-top)));left:50%;width:min(240px,70%);transform:translateX(-50%);display:grid;grid-template-rows:var(--ink) var(--icon) var(--digits) var(--small) var(--digits) var(--ink);row-gap:var(--gap);justify-items:center;align-items:center}
+.pause-content{--text-size:clamp(17px,3.3vh,28px);--text-size:clamp(17px,3.3dvh,28px);--gap:clamp(14px,3.8vh,34px);--gap:clamp(14px,3.8dvh,34px);--icon:clamp(30px,6.5vh,58px);--icon:clamp(30px,6.5dvh,58px);--small:clamp(20px,4.3vh,38px);--small:clamp(20px,4.3dvh,38px);--ink:calc(var(--text-size) * .67);--digits:calc(var(--text-size) * .51);
+  position:absolute;top:max(26px,calc(14px + env(safe-area-inset-top)),9vh);top:max(26px,calc(14px + env(safe-area-inset-top)),9dvh);left:50%;width:min(240px,70%);transform:translateX(-50%);display:grid;grid-template-rows:var(--ink) var(--icon) var(--digits) var(--small) var(--digits) var(--ink);row-gap:var(--gap);justify-items:center;align-items:center}
 .stat-text{display:block;position:relative;top:-.08em;font-size:var(--text-size);line-height:1;white-space:nowrap}
 .stat-icon{width:auto;height:var(--icon);object-fit:contain;filter:drop-shadow(-3px 5px 5px #0006)}
 .stat-icon.small{height:var(--small)}
@@ -54,7 +54,7 @@ dialog{border:1px solid #dce2d3;background:#f6f5ee;box-shadow:0 18px 70px #0003}
 dialog::backdrop{background:#17151555;backdrop-filter:blur(9px)}
 dialog button{display:block;width:100%;padding:20px 10px;border-radius:13px;background:none;font-size:15px;letter-spacing:1px}
 .render-error{position:absolute;inset:40% 25px auto;text-align:center;font-size:13px;line-height:1.8;color:#faf9f6}
-@media(max-height:480px){.pause-content{top:max(18px,calc(10px + env(safe-area-inset-top)))}}
+@media(max-height:480px){.pause-content{top:max(18px,calc(10px + env(safe-area-inset-top)),8dvh)}}
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}.pause-content>*{transition:none;transform:none}}
 #receipt-status:empty{display:none}#receipt-panel .receipt-header{justify-content:flex-end}
 #receipt-image img{display:block;width:100%;height:auto;-webkit-touch-callout:default;user-select:auto}#receipt-save:disabled{opacity:.55;cursor:wait}
