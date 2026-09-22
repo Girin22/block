@@ -1,52 +1,58 @@
-export type SoundId = 'silicone' | 'jelly-light';
+/**
+ * The placement sound: one paver set against another. Hard, dry, and mineral, with almost no ring,
+ * so it stays clean when blocks are placed in quick succession. Everything is synthesized; the game
+ * ships no audio files.
+ */
 
-/** V2's two original synthesis recipes, independent of V1 settings and storage. */
-export function synthesize(ctx: BaseAudioContext, destination: AudioNode, id: SoundId, volume: number) {
-  const now = ctx.currentTime + 0.005;
-  const bus = ctx.createGain(); bus.gain.value = volume * 0.7;
-  const filter = ctx.createBiquadFilter(); filter.type = 'lowpass'; filter.frequency.value = 1800; filter.Q.value = 0.5;
-  bus.connect(filter).connect(destination);
-  let pending = 0;
-  const sources: AudioScheduledSourceNode[] = [];
-  const envelope = (source: AudioScheduledSourceNode & AudioNode, amplitude: number, duration: number, attack = 0.004, rebound?: { time: number; strength: number }) => {
-    const gain = ctx.createGain();
-    gain.gain.setValueAtTime(0, now);
-    gain.gain.linearRampToValueAtTime(amplitude, now + attack);
-    if (rebound) {
-      gain.gain.exponentialRampToValueAtTime(amplitude * 0.32, now + rebound.time - 0.016);
-      gain.gain.linearRampToValueAtTime(amplitude * rebound.strength, now + rebound.time);
-    }
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
-    gain.gain.linearRampToValueAtTime(0, now + duration + 0.012);
-    source.connect(gain).connect(bus); pending++; sources.push(source);
-    source.onended = () => { source.disconnect(); gain.disconnect(); if (--pending === 0) { bus.disconnect(); filter.disconnect(); } };
-    source.start(now); source.stop(now + duration + 0.02);
-  };
-  const tone = (start: number, end: number, amplitude: number, duration: number, glide = 0.04, attack = 0.004) => {
-    const osc = ctx.createOscillator(); osc.type = 'sine';
-    osc.frequency.setValueAtTime(start, now); osc.frequency.exponentialRampToValueAtTime(end, now + glide);
-    envelope(osc, amplitude, duration, attack);
-  };
-  const jelly = () => {
-    const osc = ctx.createOscillator(); osc.type = 'sine';
-    osc.frequency.setValueAtTime(330, now);
-    osc.frequency.exponentialRampToValueAtTime(220, now + 0.019);
-    osc.frequency.exponentialRampToValueAtTime(490, now + 0.063);
-    osc.frequency.exponentialRampToValueAtTime(365, now + 0.15);
-    envelope(osc, 0.64, 0.21, 0.008, { time: 0.052, strength: 0.68 });
-  };
-  const air = (amplitude: number, duration: number, cutoff: number) => {
-    const buffer = ctx.createBuffer(1, Math.ceil(ctx.sampleRate * (duration + 0.03)), ctx.sampleRate);
-    const data = buffer.getChannelData(0);
-    let seed = 73, sample = 0;
-    const smoothing = 1 - Math.exp(-2 * Math.PI * cutoff / ctx.sampleRate);
-    for (let i = 0; i < data.length; i++) { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; sample += smoothing * (seed / 0xffffffff * 2 - 1 - sample); data[i] = sample; }
-    const source = ctx.createBufferSource(); source.buffer = buffer; envelope(source, amplitude, duration, 0.003);
-  };
-  if (id === 'silicone') {
-    tone(255, 145, 0.69, 0.20, 0.09, 0.009); tone(410, 290, 0.17, 0.14, 0.085, 0.01);
-  } else {
-    jelly(); tone(520, 730, 0.11, 0.115, 0.06, 0.012); air(0.055, 0.03, 1000);
+/** How much each hit may drift in pitch, so repeated placements never sound machine-made. */
+export const PITCH_VARIATION = 0.025;
+
+/** The white filler is a smaller piece: higher, shorter, and quieter than a placed block. */
+export function clackVoice(white: boolean, variation = 0) {
+  const drift = 1 + Math.max(-1, Math.min(1, variation)) * PITCH_VARIATION;
+  return { pitch: (white ? 1.4 : 1) * drift, length: white ? 0.8 : 1, gain: white ? 0.5175 : 0.69, contact: white ? 1.15 : 1 };
+}
+
+const noiseBuffers = new WeakMap<BaseAudioContext, AudioBuffer>();
+function noiseBuffer(ctx: BaseAudioContext) {
+  let buffer = noiseBuffers.get(ctx);
+  if (!buffer) {
+    buffer = ctx.createBuffer(1, Math.ceil(ctx.sampleRate * 0.25), ctx.sampleRate);
+    const data = buffer.getChannelData(0); let seed = 73;
+    for (let i = 0; i < data.length; i++) { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; data[i] = seed / 0xffffffff * 2 - 1; }
+    noiseBuffers.set(ctx, buffer);
   }
-  return () => { bus.gain.cancelScheduledValues(ctx.currentTime); bus.gain.setTargetAtTime(0, ctx.currentTime, 0.005); for (const source of sources) { try { source.stop(ctx.currentTime + 0.03); } catch { /* Already ended. */ } } };
+  return buffer;
+}
+
+/** variation is -1..1 and picks where in the allowed pitch drift this hit falls. */
+export function synthesize(ctx: BaseAudioContext, destination: AudioNode, white: boolean, variation = 0) {
+  const voice = clackVoice(white, variation), t0 = ctx.currentTime + 0.005;
+  const bus = ctx.createGain(); bus.gain.value = voice.gain; bus.connect(destination);
+  let pending = 0;
+  const finish = (source: AudioScheduledSourceNode, nodes: AudioNode[]) => {
+    pending++;
+    source.onended = () => { source.disconnect(); nodes.forEach(node => node.disconnect()); if (--pending === 0) bus.disconnect(); };
+  };
+  /** One resonant mode of the struck block: instant attack, exponential decay, optional pitch fall. */
+  const mode = (frequency: number, amplitude: number, decay: number, fallTo?: number) => {
+    const end = t0 + decay * voice.length;
+    const osc = ctx.createOscillator(), gain = ctx.createGain(); osc.type = 'sine';
+    osc.frequency.setValueAtTime(frequency * voice.pitch, t0);
+    if (fallTo) osc.frequency.exponentialRampToValueAtTime(fallTo * voice.pitch, t0 + 0.045 * voice.length);
+    gain.gain.setValueAtTime(0, t0); gain.gain.linearRampToValueAtTime(amplitude, t0 + 0.0015);
+    gain.gain.exponentialRampToValueAtTime(0.0001, end); gain.gain.linearRampToValueAtTime(0, end + 0.004);
+    osc.connect(gain).connect(bus); finish(osc, [gain]); osc.start(t0); osc.stop(end + 0.01);
+  };
+  /** The contact itself: a very short band of noise. */
+  const contact = (frequency: number, q: number, amplitude: number, duration: number) => {
+    const end = t0 + duration;
+    const source = ctx.createBufferSource(), filter = ctx.createBiquadFilter(), gain = ctx.createGain();
+    source.buffer = noiseBuffer(ctx); filter.type = 'bandpass'; filter.frequency.value = frequency * voice.contact; filter.Q.value = q;
+    gain.gain.setValueAtTime(0, t0); gain.gain.linearRampToValueAtTime(amplitude, t0 + 0.001);
+    gain.gain.exponentialRampToValueAtTime(0.0001, end); gain.gain.linearRampToValueAtTime(0, end + 0.003);
+    source.connect(filter).connect(gain).connect(bus); finish(source, [filter, gain]); source.start(t0); source.stop(end + 0.01);
+  };
+  contact(2200, 1.2, 0.8, 0.022);
+  mode(410, 0.5, 0.055); mode(985, 0.24, 0.03); mode(205, 0.4, 0.07, 130);
 }

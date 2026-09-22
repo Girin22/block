@@ -14,15 +14,25 @@ export function dropProgress(progress: number) {
  * the camera, easing to exactly 1 as it meets the ground so the joints close flush. Cells in.
  */
 /**
- * The white filler is lowered in the same way as a placed block: a short beat after the block that
- * closed the gap, it comes down from just above and stops dead. No growth, overshoot, or bounce.
+ * The white filler is set down a short beat after the block that closed the gap. It is held almost
+ * directly over its slot and lowered perpendicular to the ground, so the height reads from the
+ * shadow and the size rather than from travel across the board. No growth, overshoot, or bounce.
  */
-export const FILL_DELAY = 0.06, FILL_SECONDS = 0.2, FILL_HEIGHT = 1.2;
+export const FILL_DELAY = 0.06, FILL_SECONDS = 0.2;
+/** Travel across the board in cells: small, so the tile never seems to fly in from far away. */
+export const FILL_HEIGHT = 0.28;
+/** Extra size while lifted; the camera looks straight down, so nearer means slightly larger. */
+export const FILL_LIFT = 0.08;
 export const FILL_LANDS = FILL_DELAY + FILL_SECONDS;
 
-/** Remaining height above the slot, in cells. */
+/** Height above the ground from 1 (held) to 0 (seated), accelerating into contact. */
+export function fillAltitude(age: number) {
+  return 1 - dropProgress((age - FILL_DELAY) / FILL_SECONDS);
+}
+
+/** Remaining offset across the board, in cells. */
 export function fillGap(age: number) {
-  return FILL_HEIGHT * (1 - dropProgress((age - FILL_DELAY) / FILL_SECONDS));
+  return FILL_HEIGHT * fillAltitude(age);
 }
 
 /** Hidden during the beat, then solid well before contact so the landing itself is never a fade. */

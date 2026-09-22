@@ -1,13 +1,15 @@
 import * as THREE from 'three';
 import { followCamera } from './camera-motion';
-import { dropDuration, dropProgress, fillGap, fillOpacity, FILL_LANDS, liftScale } from './drop-motion';
-import { size, WIDTH, SPAWN_X, type Pavement, type Rotation, type Tile } from '../../../packages/play-core';
+import { dropDuration, dropProgress, fillAltitude, fillGap, fillOpacity, FILL_LANDS, FILL_LIFT, liftScale } from './drop-motion';
+import { size, WIDTH, SPAWN_ROTATION, SPAWN_X, type Pavement, type Rotation, type Tile } from '../../../packages/play-core';
 
 import { TILE_BLEED, tileImages } from './tile-assets';
 import { FallingShadow } from './falling-shadow';
 import { LandingGuide } from './landing-guide';
+import { wetTint, type Rain } from './rain';
 
 const VIEW_WIDTH = WIDTH + .28;
+const DRY_GROUND = new THREE.Color('#2c2929'), WET_GROUND = new THREE.Color('#202427');
 
 function geometry(rotation: number, white = false) {
   const plane = new THREE.PlaneGeometry((white ? 1 : 2) + TILE_BLEED, 1 + TILE_BLEED);
@@ -37,8 +39,8 @@ export class PlayScene {
   private center = 7.4;
   private cameraVelocity = 0;
   private x = SPAWN_X;
-  private rotation: Rotation = 0;
-  private spin = 0;
+  private rotation: Rotation = SPAWN_ROTATION;
+  private spin = SPAWN_ROTATION * Math.PI / 2;
   private controlledY?: number;
   private held = false;
   private started = false;
@@ -50,15 +52,16 @@ export class PlayScene {
   private dropping?: { from: THREE.Vector3; to: THREE.Vector3; elapsed: number; duration: number; done: () => void };
   private reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
   private observer: ResizeObserver;
-  constructor(private canvas: HTMLCanvasElement, private board: Pavement, private onAutoLand: () => void) {
+  constructor(private canvas: HTMLCanvasElement, private board: Pavement, private onAutoLand: () => void, private rain?: Rain) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-    this.scene.background = new THREE.Color('#2c2929');
+    this.scene.background = DRY_GROUND.clone();
     this.fallingShadow = new FallingShadow(); this.scene.add(this.fallingShadow.mesh);
     this.active = new THREE.Mesh(this.dominoes[0], this.material(false, 0)); this.scene.add(this.active);
     this.ghost = new THREE.Mesh(this.dominoes[0], new THREE.MeshBasicMaterial({ map: this.guide.texture('horizontal'), transparent: true, depthWrite: false, toneMapped: false }));
     this.ghost.scale.z = 0.04; this.scene.add(this.ghost);
     this.observer = new ResizeObserver(() => this.resize()); this.observer.observe(canvas); this.resize();
+    this.spawn();
     this.frame(0);
   }
   private material(white: boolean, rotation: Rotation) {
@@ -155,8 +158,8 @@ export class PlayScene {
   get column() { return this.x; }
   spawn() {
     this.held = false; this.contactTime = 0;
-    this.controlledY = undefined; this.x = SPAWN_X; this.rotation = 0; this.spin = Math.ceil(this.spin / (Math.PI * 2)) * Math.PI * 2;
-    this.active.position.set(SPAWN_X + 1, this.center + (this.halfHeight - 2.2), 0.12);
+    this.controlledY = undefined; this.x = SPAWN_X; this.rotation = SPAWN_ROTATION; this.spin = SPAWN_ROTATION * Math.PI / 2;
+    this.active.position.set(SPAWN_X + size(SPAWN_ROTATION).w / 2, this.center + (this.halfHeight - 2.2), 0.12);
     this.active.rotation.z = this.spin; this.orient();
   }
   drop(done: () => void) {
@@ -206,7 +209,7 @@ export class PlayScene {
     this.materials.forEach(material => material.dispose()); this.textures.forEach(texture => texture.dispose()); this.renderer.dispose();
   }
   private frame = (now: number) => {
-    const dt = this.paused ? 0 : Math.min(0.05, Math.max(0, (now - this.last) / 1000)); this.last = now; this.animationTime += dt;
+    const elapsed = Math.min(0.05, Math.max(0, (now - this.last) / 1000)), dt = this.paused ? 0 : elapsed; this.last = now; this.animationTime += dt;
     const targetCenter = Math.max(this.halfHeight - 0.12, this.board.height + 0.6);
     const oldCenter = this.center;
     if (dt > 0) {
@@ -218,6 +221,13 @@ export class PlayScene {
     if (!this.dropping && !this.held) this.board.advanceFloor(Math.max(0, Math.floor(this.center - this.halfHeight + 0.5)));
     this.camera.position.set(WIDTH / 2, this.center, 22); this.camera.lookAt(WIDTH / 2, this.center, 0);
     this.updateFrame();
+    if (this.rain) {
+      // Weather keeps its own clock: it goes on falling over a paused board.
+      this.rain.frame(elapsed, { widthPx: this.canvas.clientWidth, heightPx: this.canvas.clientHeight, cellPx: this.cellPixels, left: (WIDTH - VIEW_WIDTH) / 2, top: this.center + this.halfHeight });
+      const [r, g, b] = wetTint(this.rain.wetness);
+      for (const material of this.materials.values()) material.color.setRGB(r, g, b, THREE.SRGBColorSpace);
+      (this.scene.background as THREE.Color).lerpColors(DRY_GROUND, WET_GROUND, this.rain.wetness);
+    }
     this.active.visible = !this.board.atLimit && !this.paused;
     if (this.paused) this.ghost.visible = false;
     this.ghost.renderOrder = this.board.tiles.length + 1; this.fallingShadow.mesh.renderOrder = this.board.tiles.length + 2; this.active.renderOrder = this.board.tiles.length + 3;
@@ -250,13 +260,14 @@ export class PlayScene {
       if (mesh.position.y < this.center - this.halfHeight - 3) { this.seat(mesh); this.scene.remove(mesh); this.settled.delete(id); continue; }
       const shadow = mesh.userData.shadow as THREE.Mesh | undefined;
       if (!shadow) continue;
-      // The white filler comes down like any other paver: accelerating, rigid, flush on contact.
+      // The white filler is lowered straight onto its slot: accelerating, rigid, flush on contact.
       const age = this.animationTime - mesh.userData.born;
       if (age >= FILL_LANDS) { this.seat(mesh); continue; }
-      const gap = fillGap(age), opacity = fillOpacity(age), lift = liftScale(gap);
+      const altitude = fillAltitude(age), opacity = fillOpacity(age), lift = 1 + FILL_LIFT * altitude;
       (mesh.material as THREE.MeshBasicMaterial).opacity = opacity;
-      mesh.position.y = mesh.userData.baseY + .5 + gap; mesh.position.z = .1; mesh.scale.set(lift, lift, 1);
-      this.fallingShadow.updateSquare(shadow, mesh, gap, opacity);
+      mesh.position.y = mesh.userData.baseY + .5 + fillGap(age); mesh.position.z = .1; mesh.scale.set(lift, lift, 1);
+      // The shadow, not the travel, carries the height: 1.2 cells is its full separation.
+      this.fallingShadow.updateSquare(shadow, mesh, 1.2 * altitude, opacity);
     }
     this.renderer.render(this.scene, this.camera); this.raf = requestAnimationFrame(this.frame);
   };

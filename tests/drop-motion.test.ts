@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dropDuration, dropProgress, fillGap, fillOpacity, FILL_DELAY, FILL_HEIGHT, FILL_LANDS, liftScale } from '../apps/play/src/drop-motion';
+import { dropDuration, dropProgress, fillAltitude, fillGap, fillOpacity, FILL_DELAY, FILL_HEIGHT, FILL_LANDS, liftScale } from '../apps/play/src/drop-motion';
 
 describe('weighted drop animation', () => {
   it('accelerates monotonically and lands exactly without overshooting', () => {
@@ -19,6 +19,10 @@ describe('weighted drop animation', () => {
     expect(dropDuration(10000)).toBe(0.38);
   });
   it('lowers the white filler from above and seats it without growth, overshoot, or a fading landing', () => {
+    // Held almost over its slot: height is perpendicular to the ground, not travel across the board.
+    expect(FILL_HEIGHT).toBeLessThan(0.5);
+    expect(fillAltitude(0)).toBe(1);
+    expect(fillAltitude(FILL_LANDS)).toBeCloseTo(0, 10);
     expect(fillGap(0)).toBe(FILL_HEIGHT);
     expect(fillOpacity(FILL_DELAY)).toBe(0);
     expect(fillGap(FILL_LANDS)).toBeCloseTo(0, 10);

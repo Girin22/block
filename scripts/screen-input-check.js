@@ -21,11 +21,12 @@ async (page) => {
   await swipe(100, 360, 135, 740);
   const vertical = await receipt();
   if (vertical.length !== 1) throw new Error('Empty-screen down swipe did not place exactly one tile');
-  if (Math.abs(Number(vertical[0].x) - (40 + 4 * 264 / 9)) > .001) throw new Error('Vertical swipe drifted sideways');
+  // The upright spawn block sits in the middle column, so its centre is column 4.5.
+  if (vertical[0].shape !== '#tile-1-2') throw new Error('Spawn block is not upright');
+  if (Math.abs(Number(vertical[0].x) - (40 + 4.5 * 264 / 9)) > .001) throw new Error('Vertical swipe drifted sideways');
   await page.reload(); await page.waitForTimeout(200);
-  // Empty-screen tap rotates vertical, horizontal swipe moves to the right wall,
-  // second empty-screen tap rotates horizontal with a wall kick.
-  await page.mouse.click(90, 400);
+  // Horizontal swipe moves the upright block to the right wall, then an empty-screen
+  // tap rotates it horizontal with a wall kick.
   await swipe(100, 400, 290, 405);
   await page.mouse.click(90, 400);
   await swipe(100, 360, 135, 740);

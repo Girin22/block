@@ -5,14 +5,19 @@ async (page) => {
   await page.goto('http://127.0.0.1:5173/');
   const canvas = page.locator('#playfield');
   await canvas.waitFor(); await page.waitForTimeout(500);
-  await page.screenshot({ path: 'output/playwright/frame-shadow-horizontal.png' });
-  await page.mouse.click(195, 300); await page.waitForTimeout(250);
+  // The first block enters upright; one tap turns it on its side.
   await page.screenshot({ path: 'output/playwright/frame-shadow-vertical.png' });
+  await page.mouse.click(195, 300); await page.waitForTimeout(250);
+  await page.screenshot({ path: 'output/playwright/frame-shadow-horizontal.png' });
   await page.reload(); await canvas.waitFor();
-  const spawn = await page.evaluate(async () => (await import('/packages/play-core/index.ts')).SPAWN_X);
+  const { spawn, upright } = await page.evaluate(async () => {
+    const core = await import('/packages/play-core/index.ts');
+    return { spawn: core.SPAWN_X, upright: core.SPAWN_ROTATION % 2 === 1 };
+  });
   const drop = async (x, vertical) => {
     await canvas.focus();
-    if (vertical) await page.keyboard.press('ArrowUp');
+    // Blocks enter upright, so one rotation is needed for the other orientation.
+    if (vertical !== upright) await page.keyboard.press('ArrowUp');
     for (let i = 0; i < Math.abs(x - spawn); i++) await page.keyboard.press(x < spawn ? 'ArrowLeft' : 'ArrowRight');
     await page.keyboard.press('ArrowDown'); await page.waitForTimeout(470);
   };

@@ -40,9 +40,13 @@ async (page) => {
   await page.setViewportSize({ width: 402, height: 874 });
   await page.reload(); await page.locator('#pause.icon-ready').waitFor();
   const canvas = page.locator('#playfield');
-  const spawn = await page.evaluate(async () => (await import('/packages/play-core/index.ts')).SPAWN_X);
+  const { spawn, upright } = await page.evaluate(async () => {
+    const core = await import('/packages/play-core/index.ts');
+    return { spawn: core.SPAWN_X, upright: core.SPAWN_ROTATION % 2 === 1 };
+  });
   const drop = async (x, vertical) => {
-    await canvas.focus(); if (vertical) await page.keyboard.press('ArrowUp');
+    // Blocks enter upright, so one rotation is needed for the other orientation.
+    await canvas.focus(); if (vertical !== upright) await page.keyboard.press('ArrowUp');
     for (let i = 0; i < Math.abs(x - spawn); i++) await page.keyboard.press(x < spawn ? 'ArrowLeft' : 'ArrowRight');
     await page.keyboard.press('ArrowDown'); await page.waitForTimeout(440);
   };

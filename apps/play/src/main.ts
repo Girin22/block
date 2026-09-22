@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 import './style.css';
-import { Pavement, SPAWN_X, type Rotation } from '../../../packages/play-core';
+import { Pavement, SPAWN_ROTATION, SPAWN_X, type Rotation } from '../../../packages/play-core';
 import { PlayScene } from './scene';
 import { PlaySound } from './sound';
 import { isDownSwipe, swipeAxis, type SwipeAxis } from './input';
@@ -10,6 +10,9 @@ import { PauseIcon } from './pause-icon';
 import { PlayTimer } from './play-timer';
 import { FILL_LANDS } from './drop-motion';
 import { tileImages } from './tile-assets';
+import { Rain } from './rain';
+import { RainAmbience } from './rain-sound';
+import rainSoundURL from '../../../assets/audio/rain-window.mp3?url';
 
 document.querySelector('#app')!.innerHTML = `<main class="play">
   <canvas id="playfield" tabindex="0" aria-label="블록 쌓기. 좌우 스와이프로 이동, 탭으로 회전, 아래 스와이프로 배치."></canvas>
@@ -45,15 +48,34 @@ document.querySelector('#export')!.before(limitNote);
 let photo: File | undefined, photoURL: string | undefined;
 let photoGeneration = 0, savingPhoto = false, manualPhoto = false;
 let generationAbort: AbortController | undefined, disposePreview: (() => void) | undefined;
+// Admin mode (?admin) adds tools outside the game screen. Nothing here affects rules or the export.
+const admin = new URLSearchParams(location.search).has('admin');
+let rain: Rain | undefined;
+if (admin) {
+  const weather = document.createElement('canvas'); weather.id = 'weather'; weather.setAttribute('aria-hidden', 'true');
+  // The recording is only requested once the rain is first switched on.
+  const ambience = new RainAmbience(rainSoundURL);
+  canvas.after(weather); rain = new Rain(weather, ambience);
+  const panel = document.createElement('aside'); panel.id = 'admin'; panel.setAttribute('aria-label', '관리자 도구');
+  panel.innerHTML = '<span>관리자</span><button id="rain-toggle" aria-pressed="false">비 내림</button>';
+  document.body.append(panel);
+  const toggle = panel.querySelector<HTMLButtonElement>('#rain-toggle')!;
+  toggle.addEventListener('click', () => {
+    ambience.unlock();
+    toggle.setAttribute('aria-pressed', String(rain!.toggle()));
+    // Hand the keyboard back to the game so admin clicks never interrupt play.
+    if (!paused && !menu.open) canvas.focus({ preventScroll: true });
+  });
+}
 let board = new Pavement(), started = new Date();
 const sound = new PlaySound();
 let view: PlayScene;
-let x = SPAWN_X, rotation: Rotation = 0;
+let x = SPAWN_X, rotation: Rotation = SPAWN_ROTATION;
 let gesture: { id: number; x: number; y: number; lastY: number; column: number; moved: boolean; lowered: boolean; axis?: SwipeAxis } | undefined;
 let fillSound: ReturnType<typeof setTimeout> | undefined;
 function createScene() {
   try {
-    view = new PlayScene(canvas, board, drop); view.aim(x, rotation);
+    view = new PlayScene(canvas, board, drop, rain); view.aim(x, rotation);
     if (import.meta.env.DEV && board.tiles.length) view.add(board.tiles.filter(tile => tile.y >= board.height - 24), false);
   }
   catch (error) {
@@ -87,7 +109,7 @@ function drop() {
     // The filler is heard at the moment it seats, not when it first appears.
     if (added.some(tile => tile.white)) fillSound = setTimeout(() => { if (!paused && !document.hidden) sound.place(true); }, FILL_LANDS * 1000);
     // A fresh piece always enters at the current camera's upper center.
-    x = SPAWN_X; rotation = 0; view.spawn();
+    x = SPAWN_X; rotation = SPAWN_ROTATION; view.spawn();
     if (board.atLimit) pause();
   });
 }
@@ -168,8 +190,8 @@ function closeReceipt() {
   document.querySelector('#receipt-image')!.replaceChildren();
 }
 function resetSession() {
-  clearTimeout(fillSound); gesture = undefined; view?.dispose(); sound.reset();
-  board = new Pavement(); started = new Date(); x = SPAWN_X; rotation = 0; playTimer.reset();
+  clearTimeout(fillSound); gesture = undefined; view?.dispose(); sound.reset(); rain?.clearMarks();
+  board = new Pavement(); started = new Date(); x = SPAWN_X; rotation = SPAWN_ROTATION; playTimer.reset();
   limitNote.hidden = true; pauseButton.disabled = false;
   createScene(); view?.pause(paused);
 }

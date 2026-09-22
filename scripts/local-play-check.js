@@ -13,10 +13,11 @@ async (page) => {
     for (const key of values) await page.keyboard.press(key);
     await page.waitForTimeout(550);
   };
-  await keys(['ArrowLeft', 'ArrowLeft', 'ArrowDown']);
+  // Blocks enter upright in column 4. Ring: flat at 1, upright at 0 and 2, flat on top at 0.
   await keys(['ArrowUp', 'ArrowLeft', 'ArrowLeft', 'ArrowLeft', 'ArrowDown']);
-  await keys(['ArrowUp', 'ArrowLeft', 'ArrowDown']);
-  await keys(['ArrowLeft', 'ArrowLeft', 'ArrowLeft', 'ArrowDown']);
+  await keys(['ArrowLeft', 'ArrowLeft', 'ArrowLeft', 'ArrowLeft', 'ArrowDown']);
+  await keys(['ArrowLeft', 'ArrowLeft', 'ArrowDown']);
+  await keys(['ArrowUp', 'ArrowLeft', 'ArrowLeft', 'ArrowLeft', 'ArrowLeft', 'ArrowDown']);
   await page.screenshot({ path: 'output/playwright/local-play-ring.png' });
   await page.locator('#pause').click(); await page.locator('#export').click();
   await page.waitForFunction(() => !document.querySelector('#receipt-save').disabled);

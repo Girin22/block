@@ -1,8 +1,11 @@
 // Three 3-cell-wide interlocking motifs fit side by side.
 export const WIDTH = 9;
-export const SPAWN_X = Math.floor((WIDTH - 2) / 2);
 export const MAX_SESSION_BLOCKS = 24 * 60 * 60 * 2;
 export type Rotation = 0 | 1 | 2 | 3;
+// Every block enters upright in the exact middle column. A two-wide block cannot be centred on an
+// odd board, a one-wide upright block can.
+export const SPAWN_ROTATION: Rotation = 1;
+export const SPAWN_X = Math.floor((WIDTH - 1) / 2);
 export interface Tile { id: number; x: number; y: number; w: number; h: number; rotation: Rotation; white: boolean; }
 export function size(rotation: Rotation) { return rotation % 2 ? { w: 1, h: 2 } : { w: 2, h: 1 }; }
 export const COLORS = ['#408d6c', '#4b9976', '#398665', '#519a78'];

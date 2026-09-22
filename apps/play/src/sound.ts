@@ -2,7 +2,6 @@ import { synthesize } from './audio';
 export class PlaySound {
   private context?: AudioContext;
   private output?: DynamicsCompressorNode;
-  private count = 0;
   unlock() {
     try {
       this.context ??= new AudioContext();
@@ -16,9 +15,8 @@ export class PlaySound {
   }
   place(white = false) {
     this.unlock(); if (!this.context || !this.output) return;
-    const id = white ? 'jelly-light' : this.count++ % 2 ? 'jelly-light' : 'silicone';
-    synthesize(this.context, this.output, id, white ? 0.48 : 0.60);
+    synthesize(this.context, this.output, white, Math.random() * 2 - 1);
   }
   pause() { if (this.context?.state === 'running') void this.context.suspend().catch(() => {}); }
-  reset() { this.count = 0; this.pause(); }
+  reset() { this.pause(); }
 }
