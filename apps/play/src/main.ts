@@ -66,7 +66,11 @@ if (admin) {
   const ambience = new RainAmbience(rainSoundURL);
   canvas.after(weather); rain = new Rain(weather, ambience);
   const panel = document.createElement('aside'); panel.id = 'admin'; panel.setAttribute('aria-label', '관리자 도구');
-  panel.innerHTML = '<span>관리자</span><button id="rain-toggle" aria-pressed="false">비 내림</button>';
+  panel.innerHTML = '<span>관리자</span><p class="device" id="device-motion"></p><button id="rain-toggle" aria-pressed="false">비 내림</button>';
+  // The game ignores this setting; the readout only explains what a tester's phone is doing.
+  const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)');
+  const showMotion = () => { panel.querySelector('#device-motion')!.innerHTML = reduceMotion.matches ? '동작 줄이기 <b>켜짐</b> (앱 동작에는 영향 없음)' : '동작 줄이기 꺼짐'; };
+  showMotion(); reduceMotion.addEventListener('change', showMotion);
   document.body.append(panel);
   const toggle = panel.querySelector<HTMLButtonElement>('#rain-toggle')!;
   toggle.addEventListener('click', () => {

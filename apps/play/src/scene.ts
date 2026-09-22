@@ -50,9 +50,6 @@ export class PlayScene {
   private last = 0;
   private animationTime = 0;
   private dropping?: { from: THREE.Vector3; to: THREE.Vector3; elapsed: number; duration: number; done: () => void };
-  // Block motion is the game itself and stays the same everywhere. Only the camera, whose movement
-  // covers the whole screen, honours the system's reduce-motion setting by jumping instead of gliding.
-  private reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
   private observer: ResizeObserver;
   /** Fires as a white filler seats on screen; the game plays its sound here. */
   onFillSeat?: () => void;
@@ -222,8 +219,8 @@ export class PlayScene {
     const oldCenter = this.center;
     if (dt > 0) {
       const next = followCamera(this.center, this.cameraVelocity, targetCenter, dt);
-      this.center = this.reduced ? targetCenter : next.position;
-      this.cameraVelocity = this.reduced ? 0 : next.velocity;
+      this.center = next.position;
+      this.cameraVelocity = next.velocity;
     }
     if (this.controlledY !== undefined) this.controlledY += this.center - oldCenter;
     if (!this.dropping && !this.held) this.board.advanceFloor(Math.max(0, Math.floor(this.center - this.halfHeight + 0.5)));

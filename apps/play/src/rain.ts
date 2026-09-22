@@ -45,7 +45,6 @@ export class Rain {
   private ripples: Ripple[] = [];
   private marks: Mark[] = [];
   private owed = 0;
-  private reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
   private context: CanvasRenderingContext2D | null;
 
   constructor(private canvas: HTMLCanvasElement, private ambience?: RainAmbience) { this.context = canvas.getContext('2d'); }
@@ -76,7 +75,6 @@ export class Rain {
     // A cool, dim wash for the mood of an overcast street.
     const mood = Math.max(intensity, wetness * 0.6);
     if (mood > 0) { context.fillStyle = `rgba(14, 24, 36, ${0.13 * mood})`; context.fillRect(0, 0, view.widthPx, view.heightPx); }
-    if (this.reduced) return;
 
     if (intensity > 0) {
       this.owed += dt * DROPS_PER_SECOND * intensity;

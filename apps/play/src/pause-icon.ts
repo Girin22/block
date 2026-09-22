@@ -12,7 +12,6 @@ export class PauseIcon {
   private player: DotLottie;
   private paused = false;
   private loaded = false;
-  private reduced = matchMedia('(prefers-reduced-motion: reduce)');
   private endFrame = 26;
 
   constructor(private button: HTMLButtonElement, canvas: HTMLCanvasElement) {
@@ -34,7 +33,6 @@ export class PauseIcon {
     this.player.addEventListener('complete', () => {
       this.player.pause(); this.player.setFrame(this.paused ? this.endFrame : 0);
     });
-    this.reduced.addEventListener('change', this.snap);
   }
 
   setPaused(paused: boolean) {
@@ -44,15 +42,9 @@ export class PauseIcon {
     this.player.pause();
     this.player.setMode(paused ? 'forward' : 'reverse');
     this.player.setFrame(frame);
-    if (this.reduced.matches || Math.abs(target - frame) < .01) this.player.setFrame(target);
+    if (Math.abs(target - frame) < .01) this.player.setFrame(target);
     else this.player.play();
   }
 
-  private snap = () => {
-    if (this.loaded && this.reduced.matches) {
-      this.player.pause(); this.player.setFrame(this.paused ? this.endFrame : 0);
-    }
-  };
-
-  dispose() { this.reduced.removeEventListener('change', this.snap); this.player.destroy(); }
+  dispose() { this.player.destroy(); }
 }
