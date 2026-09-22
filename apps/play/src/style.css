@@ -1,13 +1,15 @@
 /* Latin letters set in Jost; everything else, digits included, in the handwritten Hangul face. */
-@font-face{font-family:'Jost';src:url('../../../assets/fonts/Jost/Jost-VariableFont_wght.ttf') format('truetype');font-weight:100 900;font-display:swap;unicode-range:U+0041-005A,U+0061-007A,U+00C0-024F}
-@font-face{font-family:'GangBuJang';src:url('../../../assets/fonts/나눔손글씨 강부장님체.ttf') format('truetype');font-display:swap}
+@font-face{font-family:'Jost';src:url('../../../assets/fonts/Jost/Jost-VariableFont_wght.ttf') format('truetype');font-weight:100 900;font-display:block;unicode-range:U+0041-005A,U+0061-007A,U+00C0-024F}
+/* KS X 1001 subset (2,350 syllables + ASCII) of the full 5.9 MB face, rebuilt with scripts/subset-font.py. */
+@font-face{font-family:'GangBuJang';src:url('../../../assets/fonts/GangBuJang-ksx1001.woff2') format('woff2');font-display:block}
 :root{font-family:'Jost','GangBuJang',sans-serif;background:#211f1f;color:#345846;font-synthesis:none;-webkit-font-smoothing:antialiased}
 *{box-sizing:border-box}
 html,body,#app{width:100%;height:100%;margin:0;overflow:hidden;overscroll-behavior:none}
 button{font:inherit;color:inherit;border:0;cursor:pointer;-webkit-tap-highlight-color:transparent}
 button:focus-visible{outline:2px solid #a7c897;outline-offset:4px}
 [hidden]{display:none!important}
-.play{position:relative;width:min(100%,480px,62dvh);height:100dvh;margin-inline:auto;overflow:hidden;background:#2c2929}
+/* vh first for browsers without dvh (older Android WebView, iOS before 15.4), then the dynamic unit. */
+.play{position:relative;width:min(100%,480px,62vh);width:min(100%,480px,62dvh);height:100vh;height:100dvh;margin-inline:auto;overflow:hidden;background:#2c2929}
 #playfield{display:block;width:100%;height:100%;touch-action:none;user-select:none;outline:none}
 #weather{position:absolute;inset:0;z-index:1;width:100%;height:100%;pointer-events:none}
 /* Admin tools sit outside the game column; on a phone there is no outside, so they tuck into a corner. */
@@ -28,8 +30,10 @@ button:focus-visible{outline:2px solid #a7c897;outline-offset:4px}
 .pause-stat img.center-icon{width:36px;height:36px}
 /* Leaving is quick so resuming never feels held back. Entering rises from further below and the last
    item lands at 800ms (180ms delay + 620ms). The pause icon itself finishes earlier, at 300ms. */
-.pause-stat,#export,#session-limit,#export-status{opacity:0;transform:translateY(64px);transition:opacity 220ms ease-out,transform 280ms cubic-bezier(.4,0,.8,.4);will-change:opacity,transform}
-.is-paused .pause-stat,.is-paused #export,.is-paused #session-limit,.is-paused #export-status{opacity:1;transform:translateY(0);transition:opacity 520ms cubic-bezier(.22,.61,.36,1),transform 620ms cubic-bezier(.35,.6,.45,1)}
+/* No will-change and an identity-free resting state: a text layer that stays composited renders
+   soft and uneven on iOS, so the elements must leave the compositor once they have arrived. */
+.pause-stat,#export,#session-limit,#export-status{opacity:0;transform:translateY(64px);transition:opacity 220ms ease-out,transform 280ms cubic-bezier(.4,0,.8,.4)}
+.is-paused .pause-stat,.is-paused #export,.is-paused #session-limit,.is-paused #export-status{opacity:1;transform:none;transition:opacity 520ms cubic-bezier(.22,.61,.36,1),transform 620ms cubic-bezier(.35,.6,.45,1)}
 .is-paused .pause-stat:nth-child(2){transition-delay:60ms}
 .is-paused .pause-stat:nth-child(3){transition-delay:120ms}
 .is-paused #session-limit,.is-paused #export-status{transition-delay:180ms}
@@ -50,4 +54,4 @@ dialog button{display:block;width:100%;padding:20px 10px;border-radius:13px;back
 
 .receipt-open #receipt-image{filter:none}
 
-dialog.receipt-open{width:min(420px,calc(100vw - 24px));max-height:90dvh;padding:0;border-radius:20px;overflow:hidden;background:#edf0e5}#receipt-panel{height:86dvh;max-height:900px;display:flex;flex-direction:column;min-height:0}.receipt-header{display:flex;align-items:center;justify-content:space-between;padding:12px 20px;border-bottom:1px solid #d9dfce;font-size:12px;flex-shrink:0}.receipt-header #receipt-back{width:auto;padding:10px;font-size:11px;letter-spacing:0}.receipt-header #receipt-back:hover{background:#e0e7d5}#receipt-scroll{overflow-y:auto;overscroll-behavior:contain;min-height:0;flex:1;padding:20px;scrollbar-width:thin;scrollbar-color:#a7b798 transparent}#receipt-image{max-width:344px;margin:0 auto;filter:drop-shadow(0 6px 10px #2648340d)}#receipt-image svg{display:block;width:100%;height:auto}.receipt-footer{padding:12px 20px 18px;border-top:1px solid #d9dfce;flex-shrink:0;background:#f6f5ee}.receipt-footer p{font-size:10px;color:#809177;text-align:center;margin:0 0 12px}.receipt-footer #receipt-save{background:#365f49;color:#fffdf0;font-size:13px;padding:16px}.receipt-footer #receipt-save:hover{background:#456f56}
+dialog.receipt-open{width:min(420px,calc(100vw - 24px));max-height:90vh;max-height:90dvh;padding:0;border-radius:20px;overflow:hidden;background:#edf0e5}#receipt-panel{height:86vh;height:86dvh;max-height:900px;display:flex;flex-direction:column;min-height:0}.receipt-header{display:flex;align-items:center;justify-content:space-between;padding:12px 20px;border-bottom:1px solid #d9dfce;font-size:12px;flex-shrink:0}.receipt-header #receipt-back{width:auto;padding:10px;font-size:11px;letter-spacing:0}.receipt-header #receipt-back:hover{background:#e0e7d5}#receipt-scroll{overflow-y:auto;overscroll-behavior:contain;min-height:0;flex:1;padding:20px;scrollbar-width:thin;scrollbar-color:#a7b798 transparent}#receipt-image{max-width:344px;margin:0 auto;filter:drop-shadow(0 6px 10px #2648340d)}#receipt-image svg{display:block;width:100%;height:auto}.receipt-footer{padding:12px 20px 18px;border-top:1px solid #d9dfce;flex-shrink:0;background:#f6f5ee}.receipt-footer p{font-size:10px;color:#809177;text-align:center;margin:0 0 12px}.receipt-footer #receipt-save{background:#365f49;color:#fffdf0;font-size:13px;padding:16px}.receipt-footer #receipt-save:hover{background:#456f56}

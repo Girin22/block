@@ -51,7 +51,7 @@ exportButton.after(exportStatus);
 const legacyReceipt = new URLSearchParams(location.search).has('receipt');
 let exporting = false;
 // Warm the handwriting face so the pause summary and the exported label never fall back.
-document.fonts?.load('16px GangBuJang').catch(() => {});
+void Promise.all([document.fonts?.load('16px GangBuJang'), document.fonts?.load('16px Jost')]).catch(() => {});
 let photo: File | undefined, photoURL: string | undefined;
 let photoGeneration = 0, savingPhoto = false, manualPhoto = false;
 let generationAbort: AbortController | undefined, disposePreview: (() => void) | undefined;

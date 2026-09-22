@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { type Rotation } from '../../../packages/play-core';
 import { TILE_BLEED, tileImages, type TileImage } from './tile-assets';
+import { blurChannel, canvasFilterWorks } from './blur';
 
 // Figma values at the source artwork's scale (approximately 148px per cell).
 const SOURCE_CELL = 148;
@@ -28,19 +29,31 @@ export class FallingShadow {
 
   constructor() {
     this.mesh = new THREE.Mesh(this.geometries[0], this.material);
+    const filterWorks = canvasFilterWorks();
     for (const [index, { url }] of SHAPES.entries()) {
       const image = new Image();
       image.onload = () => {
         if (this.disposed) return;
         const canvas = document.createElement('canvas');
         canvas.width = image.width + PADDING * 2; canvas.height = image.height + PADDING * 2;
-        const context = canvas.getContext('2d');
+        const context = canvas.getContext('2d', { willReadFrequently: true });
         if (!context) return;
         // Figma blur radius maps to approximately half that Gaussian sigma.
-        context.filter = `blur(${BLUR / 2}px)`;
-        context.drawImage(image, PADDING, PADDING);
-        context.filter = 'none'; context.globalCompositeOperation = 'source-in';
-        context.fillStyle = '#000'; context.fillRect(0, 0, canvas.width, canvas.height);
+        if (filterWorks) {
+          context.filter = `blur(${BLUR / 2}px)`;
+          context.drawImage(image, PADDING, PADDING);
+          context.filter = 'none'; context.globalCompositeOperation = 'source-in';
+          context.fillStyle = '#000'; context.fillRect(0, 0, canvas.width, canvas.height);
+        } else {
+          // Older iOS Safari ignores canvas filters: blur the silhouette's alpha in software instead.
+          context.drawImage(image, PADDING, PADDING);
+          const pixels = context.getImageData(0, 0, canvas.width, canvas.height);
+          const alpha = new Float32Array(canvas.width * canvas.height);
+          for (let i = 0; i < alpha.length; i++) alpha[i] = pixels.data[i * 4 + 3];
+          const soft = blurChannel(alpha, canvas.width, canvas.height, BLUR / 2);
+          for (let i = 0; i < alpha.length; i++) { pixels.data[i * 4] = pixels.data[i * 4 + 1] = pixels.data[i * 4 + 2] = 0; pixels.data[i * 4 + 3] = soft[i]; }
+          context.putImageData(pixels, 0, 0);
+        }
         const texture = new THREE.CanvasTexture(canvas);
         texture.colorSpace = THREE.SRGBColorSpace;
         this.maps[index] = texture;
