@@ -185,12 +185,13 @@ export class PlayScene {
       mesh.userData.born = this.animationTime; mesh.userData.white = tile.white; mesh.userData.image = image;
       mesh.userData.baseY = tile.y; mesh.userData.height = tile.h;
       this.scene.add(mesh); this.settled.set(tile.id, mesh);
-      if (!tile.white || !animate || this.reduced) continue;
+      if (!tile.white || !animate) continue;
       // Lowered from just above: its own fading material and shadow exist only until it seats.
       mesh.userData.born = this.animationTime + order * FILL_STAGGER; mesh.userData.sound = order % soundEvery === 0;
       mesh.userData.spin = mesh.rotation.z; order++;
       const material = this.material(image).clone(); material.opacity = 0; mesh.material = material;
-      const shadow = this.fallingShadow.spawn(image); shadow.renderOrder = tile.id - .5;
+      // With reduced motion the filler still arrives in sequence, but only fades in where it sits.
+      const shadow = this.fallingShadow.spawn(image); shadow.renderOrder = tile.id - .5; shadow.visible = !this.reduced;
       mesh.userData.shadow = shadow; this.scene.add(shadow);
     }
   }
@@ -269,8 +270,9 @@ export class PlayScene {
       // The white filler is lowered straight onto its slot: accelerating, rigid, flush on contact.
       const age = this.animationTime - mesh.userData.born;
       if (age >= FILL_LANDS) { this.seat(mesh); if (mesh.userData.sound && dt > 0) this.onFillSeat?.(); continue; }
-      const altitude = fillAltitude(age), opacity = fillOpacity(age), lift = 1 + FILL_LIFT * altitude;
+      const altitude = this.reduced ? 0 : fillAltitude(age), opacity = fillOpacity(age), lift = 1 + FILL_LIFT * altitude;
       (mesh.material as THREE.MeshBasicMaterial).opacity = opacity;
+      if (this.reduced) { mesh.position.z = .1; continue; }
       mesh.position.y = mesh.userData.baseY + mesh.userData.height / 2 + fillGap(age); mesh.position.z = .1; mesh.scale.set(lift, lift, 1);
       // Slightly turned on arrival, straight by the time it is wedged in.
       const tilt = fillTilt(age); mesh.rotation.z = mesh.userData.spin + tilt;
