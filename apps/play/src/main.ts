@@ -17,9 +17,11 @@ document.querySelector('#app')!.innerHTML = `<main class="play">
   <canvas id="playfield" tabindex="0" aria-label="블록 쌓기. 좌우 스와이프로 이동, 탭으로 회전, 아래 스와이프로 배치."></canvas>
   <section id="pause-actions" aria-label="일시정지 기록" aria-hidden="true" inert>
     <div class="pause-content">
-      <div class="pause-stat" aria-label="깔린 길이"><span id="path-length">0.0미터</span></div>
-      <div class="pause-stat" aria-label="놓은 초록 블록 수"><img src="${tileImages.vertical}" alt=""/><span id="green-count">0</span></div>
-      <div class="pause-stat" aria-label="자동 채움 흰 블록 수"><img class="center-icon" src="${tileImages.center}" alt=""/><span id="white-count">0</span></div>
+      <span class="stat-text" id="path-length" aria-label="깔린 길이">0.0미터</span>
+      <img class="stat-icon" src="${tileImages.vertical}" alt="놓은 초록 블록"/>
+      <span class="stat-text" id="green-count" aria-label="놓은 초록 블록 수">0</span>
+      <img class="stat-icon small" src="${tileImages.center}" alt="자동 채움 흰 블록"/>
+      <span class="stat-text" id="white-count" aria-label="자동 채움 흰 블록 수">0</span>
       <button id="export">내보내기</button>
     </div>
   </section>
