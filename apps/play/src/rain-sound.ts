@@ -58,9 +58,23 @@ export class RainAmbience {
     } catch { /* The rain simply stays silent. */ }
   }
 
+  private paused = false;
+  private pauseTimer = 0;
+
+  /** The game's pause holds the rain where it is; the visual shower keeps falling on screen. */
+  setPaused(paused: boolean) {
+    if (paused === this.paused) return;
+    this.paused = paused; clearTimeout(this.pauseTimer);
+    if (!paused || !this.context || !this.master) return;
+    const now = this.context.currentTime;
+    this.master.gain.cancelScheduledValues(now); this.master.gain.setValueAtTime(this.master.gain.value, now);
+    this.master.gain.setTargetAtTime(0, now, 0.08);
+    this.pauseTimer = window.setTimeout(() => { if (this.paused) for (const voice of this.voices) if (!voice.element.paused) voice.element.pause(); }, 300);
+  }
+
   /** Called every frame with the shower strength, 0..1. */
   update(intensity: number) {
-    if (!this.context || !this.master || this.voices.length < 2 || document.hidden) return;
+    if (!this.context || !this.master || this.voices.length < 2 || document.hidden || this.paused) return;
     const now = this.context.currentTime;
     this.master.gain.setTargetAtTime(rainLevel(intensity), now, 0.12);
     if (intensity <= 0) { this.silence(); return; }

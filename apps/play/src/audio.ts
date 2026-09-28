@@ -1,7 +1,8 @@
 /**
  * The placement sound: one paver set against another. Hard, dry, and mineral, with almost no ring,
- * so it stays clean when blocks are placed in quick succession. Everything is synthesized; the game
- * ships no audio files.
+ * so it stays clean when blocks are placed in quick succession. Placement now plays recorded stone
+ * hits (sound.ts); this synthesized voice is the fallback until they have loaded, and clackVoice
+ * still sets how the white filler differs from a block.
  */
 
 /** How much each hit may drift in pitch, so repeated placements never sound machine-made. */

@@ -96,24 +96,34 @@ export class Pavement {
   /** Empty regions touching the tile that can no longer reach the open sky. Walls, the ground and
    *  tiles bound a region; the camera floor does not, so a space can extend below the screen. */
   private enclosedAround(tile: Tile): Cell[][] {
-    const regions: Cell[][] = [], seen = new Set<string>();
+    // `open` holds cells proven to reach the sky, `sealed` cells already claimed by an enclosed region.
+    const regions: Cell[][] = [], open = new Set<string>(), sealed = new Set<string>();
     for (let cy = tile.y - 1; cy <= tile.y + tile.h; cy++) {
       for (let cx = tile.x - 1; cx <= tile.x + tile.w; cx++) {
         const edge = cy < tile.y || cy >= tile.y + tile.h, side = cx < tile.x || cx >= tile.x + tile.w;
-        if (edge === side || !this.empty(cx, cy) || seen.has(`${cx},${cy}`)) continue;
-        const region = this.flood(cx, cy, seen);
+        const key = `${cx},${cy}`;
+        if (edge === side || !this.empty(cx, cy) || open.has(key) || sealed.has(key)) continue;
+        const region = this.flood(cx, cy, open);
+        if (region) for (const [x, y] of region) sealed.add(`${x},${y}`);
         if (region) regions.push(region);
       }
     }
     return regions;
   }
-  /** Highest cells first: an open region reaches the sky quickly, an enclosed one is walked whole. */
-  private flood(x: number, y: number, seen: Set<string>): Cell[] | undefined {
-    const rows = new Map<number, Cell[]>(); let top = y;
+  /**
+   * Walks one empty region, highest cells first, so an open region reaches the sky quickly and an
+   * enclosed one is walked whole. Each walk keeps its own visited set: an earlier walk that stopped
+   * early at the sky must never act as a wall for a later one (that once filled part of an open space).
+   * A walk that reaches the sky, or any cell an earlier walk proved open, marks everything it visited
+   * as open, since all of it is connected to the sky.
+   */
+  private flood(x: number, y: number, open: Set<string>): Cell[] | undefined {
+    const visited = new Set<string>(), rows = new Map<number, Cell[]>(); let top = y;
     const push = (x: number, y: number) => {
-      const key = `${x},${y}`; if (seen.has(key)) return; seen.add(key);
+      const key = `${x},${y}`; if (visited.has(key)) return; visited.add(key);
       let row = rows.get(y); if (!row) rows.set(y, row = []); row.push([x, y]); if (y > top) top = y;
     };
+    const opened = () => { for (const key of visited) open.add(key); return undefined; };
     push(x, y);
     const cells: Cell[] = [];
     while (true) {
@@ -121,7 +131,7 @@ export class Pavement {
       if (top < 0) return cells;
       const [cx, cy] = rows.get(top)!.pop()!;
       // Nothing sits at or above the stack's height, so a region that gets there is open.
-      if (cy >= this.height) return undefined;
+      if (cy >= this.height || open.has(`${cx},${cy}`)) return opened();
       cells.push([cx, cy]);
       if (this.empty(cx - 1, cy)) push(cx - 1, cy);
       if (this.empty(cx + 1, cy)) push(cx + 1, cy);

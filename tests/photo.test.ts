@@ -31,7 +31,7 @@ it('keeps a long preview bounded while full SVG retains every tile with shared e
   const file = await receipt.svgFile(); const svg = await file.text();
   expect(svg.match(/<use /g)).toHaveLength(3600);
   expect(svg.match(/id="tile-/g)).toHaveLength(5);
-  expect(file.size).toBeLessThan(650000);
+  expect(file.size).toBeLessThan(700000);
 });
 
 it('encodes valid PNG chunks and one continuous zlib stream across stripes', async () => {

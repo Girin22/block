@@ -11,12 +11,40 @@ import { PlayTimer } from './play-timer';
 import { tileImages } from './tile-assets';
 import { Rain } from './rain';
 import { RainAmbience } from './rain-sound';
-import rainSoundURL from '../../../assets/audio/rain-window.mp3?url';
+import pauseButtonSoundURL from '../../../assets/sfx/ES_Objects, Fashion, Shoes, Work Boot, Drop Down On Ground - Epidemic Sound.mp3?url';
+import hit01URL from '../../../assets/sfx/place/place-01.wav?url';
+import hit05URL from '../../../assets/sfx/place/place-05.wav?url';
+import hit06URL from '../../../assets/sfx/place/place-06.wav?url';
+import hit12URL from '../../../assets/sfx/place/place-12.wav?url';
+import hit14URL from '../../../assets/sfx/place/place-14.wav?url';
+import hit16URL from '../../../assets/sfx/place/place-16.wav?url';
+import fillDragURL from '../../../assets/sfx/place/ES_Rocks, Movement, Stone, Drag, Stone Surface, Small, Short Movements - Epidemic Sound - 7121-9251.wav?url';
+import rainSoundURL from '../../../assets/audio/날씨_비/rain-window.mp3?url';
+import { Soundscape, type Environment } from './ambience';
+import hanokAlleyURL from '../../../assets/audio/거리/L03256-004.mp3?url';
+import seonbiAlleyURL from '../../../assets/audio/거리/L03258-004.mp3?url';
+import pohangMarketURL from '../../../assets/audio/거리/L03314-004.mp3?url';
+import ulsanStreetURL from '../../../assets/audio/거리/L03320-004.mp3?url';
+import buntingURL from '../../../assets/audio/아침 새/L01336-002+B+KR_KSL2022_A0184+동물_조류_가을 숲속, 봄가을 철새인 촉새가 촉촉거리며 우는 소리_48khz320kbp_Mono.mp3?url';
+import sparrowURL from '../../../assets/audio/아침 새/L01371-002+B+KR_KSL2022_A0219+새_참새_철원 동송읍_오덕리 학저수지 주차장 옆 쉼터 초가지붕에서 짹짹거리는 소리_48khz320kbps_Mono-01.mp3?url';
+import warblerURL from '../../../assets/audio/아침 새/L01534-002+B+KR_KSL2022_A0382+동물_조류_무당개구리 울음소리 배경, 솔새 지저귀는 소리_48khz320kbps_Mono.mp3?url';
+import cricketURL from '../../../assets/audio/밤 개구리/L01330-002+B+KR_KSL2022_A0178+동물_곤충_강 마을의 극동귀뚜라미 울음소리_48khz320kbp_Mono.mp3?url';
+import woodFrogURL from '../../../assets/audio/밤 개구리/L01554-002+B+KR_KSL2022_A0402+동물_양서류_계곡 숲의 북방산개구리 울음소리, 새소리와 함께_48khz320kbps_Mono.mp3?url';
+import frogsURL from '../../../assets/audio/밤 개구리/개구리C.wav?url';
+import { environmentIcons } from './environment-icons';
 
+// Planner preview: the pause screen can switch the ambient environment. Not decided for release yet.
+const ENVIRONMENTS: { id: Environment; label: string }[] = [
+  { id: 'morning', label: '아침' }, { id: 'day', label: '낮' }, { id: 'night', label: '밤' }, { id: 'rain', label: '비' },
+];
 document.querySelector('#app')!.innerHTML = `<main class="play">
   <canvas id="playfield" tabindex="0" aria-label="블록 쌓기. 좌우 스와이프로 이동, 탭으로 회전, 아래 스와이프로 배치."></canvas>
   <section id="pause-actions" aria-label="일시정지 기록" aria-hidden="true" inert>
     <div class="pause-content">
+      <div id="environment" role="radiogroup" aria-label="환경">
+        <span class="environment-thumb" aria-hidden="true"></span>
+        ${ENVIRONMENTS.map(({ id, label }) => `<button role="radio" data-environment="${id}" aria-label="${label}" title="${label}" aria-checked="false" tabindex="-1">${environmentIcons[id]}</button>`).join('')}
+      </div>
       <span class="stat-text" id="path-length" aria-label="깔린 길이">0.0미터</span>
       <img class="stat-icon" src="${tileImages.vertical}" alt="놓은 초록 블록"/>
       <span class="stat-text" id="green-count" aria-label="놓은 초록 블록 수">0</span>
@@ -59,29 +87,34 @@ let photoGeneration = 0, savingPhoto = false, manualPhoto = false;
 let generationAbort: AbortController | undefined, disposePreview: (() => void) | undefined;
 // Admin mode (?admin) adds tools outside the game screen. Nothing here affects rules or the export.
 const admin = new URLSearchParams(location.search).has('admin');
-let rain: Rain | undefined;
+const weather = document.createElement('canvas'); weather.id = 'weather'; weather.setAttribute('aria-hidden', 'true');
+// The rain recording is only requested once the rain environment is first chosen.
+const rainAmbience = new RainAmbience(rainSoundURL);
+canvas.after(weather); const rain = new Rain(weather, rainAmbience);
 if (admin) {
-  const weather = document.createElement('canvas'); weather.id = 'weather'; weather.setAttribute('aria-hidden', 'true');
-  // The recording is only requested once the rain is first switched on.
-  const ambience = new RainAmbience(rainSoundURL);
-  canvas.after(weather); rain = new Rain(weather, ambience);
   const panel = document.createElement('aside'); panel.id = 'admin'; panel.setAttribute('aria-label', '관리자 도구');
-  panel.innerHTML = '<span>관리자</span><p class="device" id="device-motion"></p><button id="rain-toggle" aria-pressed="false">비 내림</button>';
+  panel.innerHTML = '<span>관리자</span><p class="device" id="device-motion"></p>';
   // The game ignores this setting; the readout only explains what a tester's phone is doing.
   const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)');
   const showMotion = () => { panel.querySelector('#device-motion')!.innerHTML = reduceMotion.matches ? '동작 줄이기 <b>켜짐</b> (앱 동작에는 영향 없음)' : '동작 줄이기 꺼짐'; };
   showMotion(); reduceMotion.addEventListener('change', showMotion);
   document.body.append(panel);
-  const toggle = panel.querySelector<HTMLButtonElement>('#rain-toggle')!;
-  toggle.addEventListener('click', () => {
-    ambience.unlock();
-    toggle.setAttribute('aria-pressed', String(rain!.toggle()));
-    // Hand the keyboard back to the game so admin clicks never interrupt play.
-    if (!paused && !menu.open) canvas.focus({ preventScroll: true });
-  });
 }
 let board = new Pavement(), started = new Date();
-const sound = new PlaySound();
+const sound = new PlaySound(pauseButtonSoundURL, [hit01URL, hit05URL, hit06URL, hit12URL, hit14URL, hit16URL], fillDragURL);
+// Loudness of each recording (integrated LUFS) so every environment plays at the same level.
+const soundscape = new Soundscape({
+  day: { repeat: false, tracks: [{ url: hanokAlleyURL, lufs: -25.6 }, { url: seonbiAlleyURL, lufs: -25.7 }, { url: pohangMarketURL, lufs: -25.9 }, { url: ulsanStreetURL, lufs: -26.4 }] },
+  morning: { repeat: true, tracks: [{ url: buntingURL, lufs: -36.2 }, { url: sparrowURL, lufs: -35.2 }, { url: warblerURL, lufs: -27.8 }] },
+  night: { repeat: true, tracks: [{ url: cricketURL, lufs: -29.5 }, { url: woodFrogURL, lufs: -47.9 }, { url: frogsURL, lufs: -28.2 }] },
+});
+/** Ambience plays while the game plays and holds while it is paused. Browsers need a gesture to start it. */
+function playAmbience() {
+  soundscape.play();
+  if (soundscape.environment === 'rain') rainAmbience.unlock();
+  rainAmbience.setPaused(false);
+}
+for (const type of ['pointerdown', 'keydown'] as const) document.addEventListener(type, () => { if (!paused && !menu.open) playAmbience(); }, { capture: true });
 let view: PlayScene;
 let x = SPAWN_X, rotation: Rotation = SPAWN_ROTATION;
 let gesture: { id: number; x: number; y: number; lastY: number; column: number; moved: boolean; lowered: boolean; axis?: SwipeAxis } | undefined;
@@ -89,6 +122,7 @@ function createScene() {
   try {
     view = new PlayScene(canvas, board, drop, rain); view.aim(x, rotation);
     view.onFillSeat = () => { if (!paused && !document.hidden) sound.place(true); };
+    view.onFillDrag = () => { if (!paused && !document.hidden) sound.drag(); };
     if (import.meta.env.DEV && board.tiles.length) view.add(board.tiles.filter(tile => tile.y >= board.height - 24), false);
   }
   catch (error) {
@@ -180,6 +214,7 @@ function updatePauseUI() {
 }
 function pause() {
   cancelGesture(); playTimer.pause(); view?.pause(true); sound.pause();
+  soundscape.pause(); rainAmbience.setPaused(true);
   if (paused) return;
   paused = true;
   document.querySelector('#path-length')!.textContent = formatMeters(board.filled);
@@ -190,8 +225,29 @@ function pause() {
 function resume() {
   if (board.atLimit || menu.open) return;
   paused = false; updatePauseUI(); playTimer.resume();
-  view?.pause(false); sound.unlock(); canvas.focus({ preventScroll: true });
+  view?.pause(false); sound.unlock(); playAmbience(); canvas.focus({ preventScroll: true });
 }
+const environmentButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('#environment [data-environment]'));
+function showEnvironment() {
+  const index = ENVIRONMENTS.findIndex(({ id }) => id === soundscape.environment);
+  document.querySelector<HTMLElement>('#environment')!.style.setProperty('--selected', String(index));
+  environmentButtons.forEach((button, i) => { button.setAttribute('aria-checked', String(i === index)); button.tabIndex = i === index ? 0 : -1; });
+}
+function chooseEnvironment(environment: Environment) {
+  soundscape.select(environment); rain.set(environment === 'rain');
+  // Unlocking inside the tap lets the rain recording start later, when play resumes.
+  if (environment === 'rain') rainAmbience.unlock();
+  showEnvironment();
+}
+environmentButtons.forEach(button => button.addEventListener('click', () => chooseEnvironment(button.dataset.environment as Environment)));
+document.querySelector<HTMLElement>('#environment')!.addEventListener('keydown', event => {
+  const step = ['ArrowRight', 'ArrowDown'].includes(event.key) ? 1 : ['ArrowLeft', 'ArrowUp'].includes(event.key) ? -1 : 0;
+  if (!step) return;
+  event.preventDefault();
+  const index = (ENVIRONMENTS.findIndex(({ id }) => id === soundscape.environment) + step + ENVIRONMENTS.length) % ENVIRONMENTS.length;
+  chooseEnvironment(ENVIRONMENTS[index].id); environmentButtons[index].focus();
+});
+showEnvironment();
 function closeReceipt() {
   generationAbort?.abort(); generationAbort = undefined;
   disposePreview?.(); disposePreview = undefined;
@@ -201,12 +257,12 @@ function closeReceipt() {
   document.querySelector('#receipt-image')!.replaceChildren();
 }
 function resetSession() {
-  gesture = undefined; view?.dispose(); sound.reset(); rain?.clearMarks();
+  gesture = undefined; view?.dispose(); sound.reset(); rain.clearMarks(); soundscape.newSession();
   board = new Pavement(); started = new Date(); x = SPAWN_X; rotation = SPAWN_ROTATION; playTimer.reset();
   limitNote.hidden = true; pauseButton.disabled = false;
   createScene(); view?.pause(paused);
 }
-pauseButton.addEventListener('click', () => { if (paused) resume(); else pause(); });
+pauseButton.addEventListener('click', () => { sound.button(); if (paused) resume(); else pause(); });
 document.addEventListener('keydown', event => {
   if (event.code === 'Escape' && paused && !menu.open) { event.preventDefault(); resume(); }
 });
@@ -308,7 +364,7 @@ menu.addEventListener('close', () => {
   else exportButton.focus();
 });
 document.addEventListener('visibilitychange', () => { if (document.hidden) pause(); });
-window.addEventListener('pagehide', () => { gesture = undefined; playTimer.pause(); sound.pause(); });
+window.addEventListener('pagehide', () => { gesture = undefined; playTimer.pause(); sound.pause(); soundscape.pause(); rainAmbience.setPaused(true); });
 window.addEventListener('pageshow', event => {
   if (!event.persisted) return;
   // A full navigation back from the browser cache starts a fresh, unsaved canvas.

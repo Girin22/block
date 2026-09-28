@@ -62,4 +62,4 @@ Vercel에서 저장소 루트를 선택하고 Framework `Vite`, Build `npm run b
 ## 출처
 
 - 글꼴: 영문은 Jost(`assets/fonts/Jost`, SIL Open Font License 1.1), 한글과 숫자는 나눔손글씨 강부장님체(`assets/fonts`, 네이버 나눔글꼴, SIL Open Font License 1.1)를 사용합니다.
-- 빗소리 `assets/audio/rain-window.mp3`: 「창문을 열고 듣는 빗소리」, 한국저작권위원회 공유저작물(공유마당, 자료 번호 806010, 2019), CC BY. 파일 태그에 저작자 이름이 없어 비워 두었습니다. 내려받은 페이지에 저작자가 표시돼 있다면 이 줄에 추가해 주세요.
+- 빗소리 `assets/audio/날씨_비/rain-window.mp3`: 「창문을 열고 듣는 빗소리」, 한국저작권위원회 공유저작물(공유마당, 자료 번호 806010, 2019), CC BY. 파일 태그에 저작자 이름이 없어 비워 두었습니다. 내려받은 페이지에 저작자가 표시돼 있다면 이 줄에 추가해 주세요.

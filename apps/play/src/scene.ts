@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { followCamera } from './camera-motion';
-import { dropDuration, dropProgress, fillAltitude, fillGap, fillOpacity, fillTilt, FILL_LANDS, FILL_LIFT, FILL_STAGGER, liftScale } from './drop-motion';
+import { planFillSounds } from './fill-sound';
+import { dropDuration, dropProgress, fillAltitude, fillGap, fillOpacity, fillTilt, FILL_DELAY, FILL_LANDS, FILL_LIFT, FILL_STAGGER, liftScale } from './drop-motion';
 import { size, WIDTH, SPAWN_ROTATION, SPAWN_X, type Pavement, type Rotation, type Tile } from '../../../packages/play-core';
 
 import { TILE_BLEED, tileImage, tileImages, type TileImage } from './tile-assets';
@@ -53,6 +54,8 @@ export class PlayScene {
   private observer: ResizeObserver;
   /** Fires as a white filler seats on screen; the game plays its sound here. */
   onFillSeat?: () => void;
+  /** Fires once as a long run of fillers begins, in place of most of their clicks. */
+  onFillDrag?: () => void;
   constructor(private canvas: HTMLCanvasElement, private board: Pavement, private onAutoLand: () => void, private rain?: Rain) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
@@ -172,8 +175,11 @@ export class PlayScene {
   }
   /** Pass animate = false for tiles that were already part of the board (restored fixtures). */
   add(tiles: Tile[], animate = true) {
-    // Fillers of one placement are laid in order, a beat apart; a long run only sounds now and then.
-    const whites = tiles.filter(tile => tile.white).length, soundEvery = Math.max(1, Math.ceil(whites / 24));
+    // Fillers of one placement are laid in order, a beat apart. Only those that will seat inside the
+    // view the camera is heading for make a sound, and a long run opens with a drag instead of a rattle.
+    const whites = tiles.filter(tile => tile.white), target = this.targetCenter;
+    const audible = animate ? whites.flatMap((tile, order) => tile.y + tile.h > target - this.halfHeight && tile.y < target + this.halfHeight ? [order] : []) : [];
+    const plan = planFillSounds(audible);
     let order = 0;
     for (const tile of tiles) {
       const image = tileImage(tile);
@@ -186,7 +192,7 @@ export class PlayScene {
       this.scene.add(mesh); this.settled.set(tile.id, mesh);
       if (!tile.white || !animate) continue;
       // Lowered from just above: its own fading material and shadow exist only until it seats.
-      mesh.userData.born = this.animationTime + order * FILL_STAGGER; mesh.userData.sound = order % soundEvery === 0;
+      mesh.userData.born = this.animationTime + order * FILL_STAGGER; mesh.userData.sound = plan.seats.has(order); mesh.userData.drag = plan.drag === order;
       mesh.userData.spin = mesh.rotation.z; order++;
       const material = this.material(image).clone(); material.opacity = 0; mesh.material = material;
       const shadow = this.fallingShadow.spawn(image); shadow.renderOrder = tile.id - .5;
@@ -204,7 +210,8 @@ export class PlayScene {
   pause(value: boolean) {
     this.paused = value;
     // A paused summary shows completed joins, never a half-grown white filler.
-    if (value) for (const mesh of this.settled.values()) mesh.userData.born = Math.min(mesh.userData.born, this.animationTime - .5);
+    // Its sounds are dropped with it, so nothing plays late when play resumes.
+    if (value) for (const mesh of this.settled.values()) { mesh.userData.born = Math.min(mesh.userData.born, this.animationTime - .5); mesh.userData.drag = false; }
   }
   dispose() {
     cancelAnimationFrame(this.raf); this.observer.disconnect();
@@ -213,9 +220,11 @@ export class PlayScene {
     (this.ghost.material as THREE.Material).dispose();
     this.materials.forEach(material => material.dispose()); this.textures.forEach(texture => texture.dispose()); this.renderer.dispose();
   }
+  /** Where the camera settles: the top of the stack held at the middle of the screen. */
+  private get targetCenter() { return Math.max(this.halfHeight - 0.12, this.board.height + 0.6); }
   private frame = (now: number) => {
     const elapsed = Math.min(0.05, Math.max(0, (now - this.last) / 1000)), dt = this.paused ? 0 : elapsed; this.last = now; this.animationTime += dt;
-    const targetCenter = Math.max(this.halfHeight - 0.12, this.board.height + 0.6);
+    const targetCenter = this.targetCenter;
     const oldCenter = this.center;
     if (dt > 0) {
       const next = followCamera(this.center, this.cameraVelocity, targetCenter, dt);
@@ -267,6 +276,7 @@ export class PlayScene {
       if (!shadow) continue;
       // The white filler is lowered straight onto its slot: accelerating, rigid, flush on contact.
       const age = this.animationTime - mesh.userData.born;
+      if (mesh.userData.drag && age >= FILL_DELAY && dt > 0) { mesh.userData.drag = false; this.onFillDrag?.(); }
       if (age >= FILL_LANDS) { this.seat(mesh); if (mesh.userData.sound && dt > 0) this.onFillSeat?.(); continue; }
       const altitude = fillAltitude(age), opacity = fillOpacity(age), lift = 1 + FILL_LIFT * altitude;
       (mesh.material as THREE.MeshBasicMaterial).opacity = opacity;

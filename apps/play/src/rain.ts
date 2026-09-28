@@ -1,5 +1,5 @@
 /**
- * Admin-only weather: rain seen from straight above. Streaks arrive at a point on the ground, leave a
+ * Rain weather (the pause screen's rain environment): rain seen from straight above. Streaks arrive at a point on the ground, leave a
  * ripple and a dark wet mark, and the pavement slowly darkens and cools as it soaks. Purely visual:
  * it never touches the board, the piece count, or the export.
  */
@@ -52,6 +52,7 @@ export class Rain {
   get on() { return this.raining; }
   get wetness() { return this.state.wetness; }
   toggle() { this.raining = !this.raining; return this.raining; }
+  set(raining: boolean) { this.raining = raining; }
   /** A new session starts on fresh ground coordinates; old marks would land in the wrong place. */
   clearMarks() { this.marks = []; this.ripples = []; this.drops = []; }
 
