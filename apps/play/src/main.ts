@@ -11,7 +11,8 @@ import { PlayTimer } from './play-timer';
 import { tileImages } from './tile-assets';
 import { Rain } from './rain';
 import { RainAmbience } from './rain-sound';
-import pauseButtonSoundURL from '../../../assets/sfx/ES_Objects, Fashion, Shoes, Work Boot, Drop Down On Ground - Epidemic Sound.mp3?url';
+import pausePopURL from '../../../assets/sfx/pause-pop.wav?url';
+import resumePopURL from '../../../assets/sfx/resume-pop.wav?url';
 import hit01URL from '../../../assets/sfx/place/place-01.wav?url';
 import hit05URL from '../../../assets/sfx/place/place-05.wav?url';
 import hit06URL from '../../../assets/sfx/place/place-06.wav?url';
@@ -105,7 +106,7 @@ if (admin) {
   setInterval(() => { audio.innerHTML = soundscape.status; }, 500);
 }
 let board = new Pavement(), started = new Date();
-const sound = new PlaySound(pauseButtonSoundURL, [hit01URL, hit05URL, hit06URL, hit12URL, hit14URL, hit16URL], fillDragURL);
+const sound = new PlaySound({ pause: pausePopURL, resume: resumePopURL }, [hit01URL, hit05URL, hit06URL, hit12URL, hit14URL, hit16URL], fillDragURL);
 // Loudness of each recording (integrated LUFS) so every environment plays at the same level. The frog
 // chorus never pauses, so at the same measured level it feels louder; it sits 3 dB lower.
 const soundscape = new Soundscape({
@@ -121,9 +122,13 @@ function playAmbience() {
 }
 // Touch-down starts sound early where browsers allow it; strict ones (Chrome on iPhone, Android Chrome)
 // only allow it when the finger lifts, so every tap retries until the ambience and effects are running.
-for (const type of ['pointerdown', 'pointerup', 'touchend', 'keydown'] as const) {
+for (const type of ['pointerdown', 'pointerup', 'touchend', 'click', 'keydown'] as const) {
   document.addEventListener(type, () => { if (!paused && !menu.open) { sound.unlock(); playAmbience(); } }, { capture: true });
 }
+// The ambience should already be there when the page opens. Browsers that allow autoplay (desktop
+// Chrome on a site visited often) start it now; the rest refuse until the first tap, which the
+// listeners above retry. No browser allows sound before any interaction on a phone.
+playAmbience();
 let view: PlayScene;
 let x = SPAWN_X, rotation: Rotation = SPAWN_ROTATION;
 let gesture: { id: number; x: number; y: number; lastY: number; column: number; moved: boolean; lowered: boolean; axis?: SwipeAxis } | undefined;
@@ -271,7 +276,7 @@ function resetSession() {
   limitNote.hidden = true; pauseButton.disabled = false;
   createScene(); view?.pause(paused);
 }
-pauseButton.addEventListener('click', () => { sound.button(); if (paused) resume(); else pause(); });
+pauseButton.addEventListener('click', () => { sound.button(paused ? 'resume' : 'pause'); if (paused) resume(); else pause(); });
 document.addEventListener('keydown', event => {
   if (event.code === 'Escape' && paused && !menu.open) { event.preventDefault(); resume(); }
 });

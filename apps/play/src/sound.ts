@@ -1,8 +1,12 @@
 import { clackVoice, synthesize } from './audio';
 import { nextTrack } from './ambience';
 
-/** The pause button's recording plays at half its original amplitude (-6 dB). */
-export const BUTTON_GAIN = 0.5;
+/**
+ * The pause button pops: the high pop pauses, the low one resumes. Both clips measure -30 LUFS
+ * momentary; this brings them to the previous button sound's level (about -22), peaking near -4 dBFS.
+ */
+export const BUTTON_GAIN = 2.5;
+export type ButtonSound = 'pause' | 'resume';
 /** The stone drag that opens a long run of white fillers. */
 export const DRAG_GAIN = 0.8;
 
@@ -15,8 +19,7 @@ export function hitVoice(white: boolean, variation = 0) {
 export class PlaySound {
   private context?: AudioContext;
   private output?: DynamicsCompressorNode;
-  private buttonData?: Promise<ArrayBuffer>;
-  private buttonBuffer?: Promise<AudioBuffer | undefined>;
+  private buttonBuffers?: Record<ButtonSound, Promise<AudioBuffer | undefined>>;
   /** Context time until which a button sound is still ringing; pausing waits for it. */
   private ringingUntil = 0;
   private suspendTimer = 0;
@@ -32,7 +35,7 @@ export class PlaySound {
 
   private dragBuffer?: Promise<AudioBuffer | undefined>;
 
-  constructor(private buttonURL?: string, private hitURLs: string[] = [], private dragURL?: string) {}
+  constructor(private buttonURLs?: Record<ButtonSound, string>, private hitURLs: string[] = [], private dragURL?: string) {}
 
   unlock() {
     try {
@@ -57,11 +60,10 @@ export class PlaySound {
         const context = this.context;
         this.dragBuffer = fetch(this.dragURL).then(response => response.arrayBuffer()).then(data => context.decodeAudioData(data)).catch(() => undefined);
       }
-      // The recording is small (about 20 KB); decode it once so later presses play instantly.
-      if (this.buttonURL && !this.buttonBuffer) {
-        const context = this.context;
-        this.buttonData ??= fetch(this.buttonURL).then(response => response.arrayBuffer());
-        this.buttonBuffer = this.buttonData.then(data => context.decodeAudioData(data)).catch(() => undefined);
+      // The pops are tiny; decode them once so later presses play instantly.
+      if (this.buttonURLs && !this.buttonBuffers) {
+        const context = this.context, load = (url: string) => fetch(url).then(response => response.arrayBuffer()).then(data => context.decodeAudioData(data)).catch(() => undefined);
+        this.buttonBuffers = { pause: load(this.buttonURLs.pause), resume: load(this.buttonURLs.resume) };
       }
     } catch { /* Silent play remains available. */ }
   }
@@ -90,11 +92,11 @@ export class PlaySound {
       source.start();
     });
   }
-  /** The pause button's press. Bypasses the compressor so it plays at exactly BUTTON_GAIN. */
-  button() {
+  /** The pause button's press. Bypasses the limiter so it plays at exactly BUTTON_GAIN. */
+  button(sound: ButtonSound) {
     this.unlock(); const context = this.context;
-    if (!context || !this.buttonBuffer) return;
-    this.pressing = this.buttonBuffer.then(buffer => {
+    if (!context || !this.buttonBuffers) return;
+    this.pressing = this.buttonBuffers[sound].then(buffer => {
       if (!buffer) return;
       const source = context.createBufferSource(), gain = context.createGain();
       source.buffer = buffer; gain.gain.value = BUTTON_GAIN;
