@@ -40,8 +40,12 @@ export class PlaySound {
       this.context ??= new AudioContext();
       if (this.context.state === 'suspended') void this.context.resume().catch(() => {});
       if (!this.output) {
+        // A limiter, not a compressor: it only catches peaks when many hits stack up. The recorded hits
+        // already peak near -3 dBFS, and the old -10 dB / 8:1 setting (tuned for the synthesized clack)
+        // pressed them down 4-8 dB under the ambience.
         this.output = this.context.createDynamicsCompressor();
-        this.output.threshold.value = -10; this.output.ratio.value = 8;
+        this.output.threshold.value = -3; this.output.knee.value = 0; this.output.ratio.value = 20;
+        this.output.attack.value = 0.001; this.output.release.value = 0.1;
         this.output.connect(this.context.destination);
       }
       if (this.hitURLs.length && !this.hits) {

@@ -9,19 +9,35 @@
  */
 
 export type Environment = 'morning' | 'day' | 'night' | 'rain';
-export interface Track { url: string; /** Integrated loudness of the recording, in LUFS. */ lufs: number; }
+export interface Track {
+  url: string;
+  /** Integrated loudness of the recording, in LUFS. */
+  lufs: number;
+  /** Extra dB on top of the common level, for recordings that feel louder than they measure. */
+  trim?: number;
+}
 
 /** Seconds the outgoing and incoming passes overlap. Covers the ~1-2 s fade at each recording's edge. */
 export const CROSSFADE = 6;
-/** Every recording is brought to this loudness, so switching environments never jumps in level. */
-export const TARGET_LUFS = -32;
+/**
+ * Every recording is brought to this loudness, so switching environments never jumps in level. It sits
+ * about 12 dB under a block landing (about -22 LUFS momentary), so the bed never masks the play.
+ * Lowered from -32 on 2026-09-29 after playtests found the bed a little loud.
+ */
+export const TARGET_LUFS = -35;
 /** Seconds to swell in the first time, and time constants for pausing and resuming. */
 export const FADE_IN = 2.5, PAUSE_FADE = 0.25, RESUME_FADE = 0.4;
 /** Seconds to cross from one environment to another while playing. */
 export const SWITCH_FADE = 1.5;
+/**
+ * Testing aid (2026-09-29): morning and night also draw a different recording every time play resumes
+ * from the pause screen, so each one can be heard without starting a new session. Set to false to go
+ * back to one recording per session.
+ */
+export const REDRAW_ON_RESUME = true;
 
-/** Linear gain that brings a recording of the given loudness to TARGET_LUFS. */
-export function trackGain(lufs: number) { return 10 ** ((TARGET_LUFS - lufs) / 20); }
+/** Linear gain that brings a recording of the given loudness to TARGET_LUFS, plus its own trim. */
+export function trackGain(lufs: number, trim = 0) { return 10 ** ((TARGET_LUFS - lufs + trim) / 20); }
 
 /** A random recording other than the one just played, so the same street never plays twice in a row. */
 export function nextTrack(count: number, current: number, random = Math.random) {
@@ -67,8 +83,8 @@ class Deck {
     }
   }
 
-  /** A repeating deck draws a new recording for the next session; it starts when next played. */
-  redraw() { if (this.repeat) { this.stop(); this.track = nextTrack(this.tracks.length, -1); } }
+  /** A repeating deck draws a different recording; it starts from the top when next played. */
+  redraw() { if (this.repeat) { this.stop(); this.track = nextTrack(this.tracks.length, this.track); } }
 
   /**
    * Starts or continues the deck. Call it from a tap, and again from later taps: strict browsers
@@ -110,7 +126,7 @@ class Deck {
   private following(track: number) { return this.repeat ? track : nextTrack(this.tracks.length, track); }
 
   private load(voice: Voice, track: number) {
-    voice.track = track; voice.trim.gain.value = trackGain(this.tracks[track].lufs);
+    voice.track = track; voice.trim.gain.value = trackGain(this.tracks[track].lufs, this.tracks[track].trim);
     if (voice.element.src !== new URL(this.tracks[track].url, location.href).href) voice.element.src = this.tracks[track].url;
     voice.element.currentTime = 0;
   }
@@ -178,6 +194,7 @@ export class Soundscape {
       // Already playing: a later tap only retries whatever a strict browser refused the first time.
       if (this.playing) { deck?.play(); return; }
       clearTimeout(this.suspendTimer); this.playing = true;
+      if (deck && REDRAW_ON_RESUME && !first) deck.redraw();
       if (deck) { deck.level.gain.cancelScheduledValues(0); deck.level.gain.value = 1; deck.play(); }
       const now = this.context.currentTime, gain = this.master.gain;
       gain.cancelScheduledValues(now); gain.setValueAtTime(gain.value, now);

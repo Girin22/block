@@ -7,8 +7,11 @@
 
 /** Seconds of overlap between the end of one pass and the start of the next. */
 export const LOOP_OVERLAP = 5;
-/** The recording is very quiet (about -39 dBFS RMS); this lifts it to sit under the block sounds. */
-export const RAIN_GAIN = 2.1;
+/**
+ * Full-strength rain plays at the other environments' level (-35 LUFS; the recording measures -33.9).
+ * It was 2.1 until 2026-09-29, which put the rain (-27 LUFS) above the block landings.
+ */
+export const RAIN_GAIN = 0.88;
 
 /** Equal-power gains for the pass that is ending and the pass that is starting. */
 export function crossfade(position: number, duration: number, overlap = LOOP_OVERLAP) {

@@ -28,7 +28,8 @@ describe('environment ambience', () => {
   it('brings every recording to the same loudness', () => {
     expect(trackGain(TARGET_LUFS)).toBe(1);
     expect(20 * Math.log10(trackGain(-26))).toBeCloseTo(TARGET_LUFS + 26, 10);
-    // The quietest night recording is lifted about 16 dB and still peaks below full scale (-19.4 dBFS).
+    // The quietest night recording is lifted and still peaks below full scale (-19.4 dBFS).
     expect(-19.4 + 20 * Math.log10(trackGain(-47.9))).toBeLessThan(-3);
+    expect(20 * Math.log10(trackGain(TARGET_LUFS, -3))).toBeCloseTo(-3, 10);
   });
 });

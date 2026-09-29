@@ -106,11 +106,12 @@ if (admin) {
 }
 let board = new Pavement(), started = new Date();
 const sound = new PlaySound(pauseButtonSoundURL, [hit01URL, hit05URL, hit06URL, hit12URL, hit14URL, hit16URL], fillDragURL);
-// Loudness of each recording (integrated LUFS) so every environment plays at the same level.
+// Loudness of each recording (integrated LUFS) so every environment plays at the same level. The frog
+// chorus never pauses, so at the same measured level it feels louder; it sits 3 dB lower.
 const soundscape = new Soundscape({
   day: { repeat: false, tracks: [{ url: hanokAlleyURL, lufs: -25.6 }, { url: seonbiAlleyURL, lufs: -25.7 }, { url: pohangMarketURL, lufs: -25.9 }, { url: ulsanStreetURL, lufs: -26.4 }] },
   morning: { repeat: true, tracks: [{ url: buntingURL, lufs: -36.2 }, { url: sparrowURL, lufs: -35.2 }, { url: warblerURL, lufs: -27.8 }] },
-  night: { repeat: true, tracks: [{ url: cricketURL, lufs: -29.5 }, { url: woodFrogURL, lufs: -47.9 }, { url: frogsURL, lufs: -28.2 }] },
+  night: { repeat: true, tracks: [{ url: cricketURL, lufs: -29.5 }, { url: woodFrogURL, lufs: -47.9 }, { url: frogsURL, lufs: -28.2, trim: -3 }] },
 });
 /** Ambience plays while the game plays and holds while it is paused. Browsers need a gesture to start it. */
 function playAmbience() {
