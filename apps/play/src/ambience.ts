@@ -40,7 +40,8 @@ export function crossfadeCurves(steps = 64) {
   return { outgoing, incoming };
 }
 
-interface Voice { element: HTMLAudioElement; trim: GainNode; fade: GainNode; track: number; }
+/** `unlocked` records that the element has played once from a tap, which strict browsers require. */
+interface Voice { element: HTMLAudioElement; trim: GainNode; fade: GainNode; track: number; unlocked: boolean; }
 
 /** Two voices that hand one environment's recordings over to each other. */
 class Deck {
@@ -59,7 +60,7 @@ class Deck {
       const element = new Audio(); element.preload = 'auto'; element.loop = false;
       const trim = context.createGain(), fade = context.createGain(); fade.gain.value = 0;
       context.createMediaElementSource(element).connect(trim).connect(fade).connect(this.level);
-      const voice: Voice = { element, trim, fade, track: -1 };
+      const voice: Voice = { element, trim, fade, track: -1, unlocked: false };
       element.addEventListener('timeupdate', () => this.watch(voice));
       element.addEventListener('ended', () => this.finish(voice));
       this.voices.push(voice);
@@ -69,22 +70,34 @@ class Deck {
   /** A repeating deck draws a new recording for the next session; it starts when next played. */
   redraw() { if (this.repeat) { this.stop(); this.track = nextTrack(this.tracks.length, -1); } }
 
-  /** Must be called from a user gesture the first time. Continues where it paused. */
+  /**
+   * Starts or continues the deck. Call it from a tap, and again from later taps: strict browsers
+   * (Chrome on iPhone) refuse to start an element outside a tap, and a refused start is simply
+   * retried. The idle voice is started and stopped once inside a tap as well, so that it may start on
+   * its own later when the crossover comes.
+   */
   play() {
     clearTimeout(this.stopTimer);
     if (!this.started) {
       this.started = true; this.crossing = false; this.current = 0;
       const [first, spare] = this.voices;
       this.load(first, this.track); first.fade.gain.cancelScheduledValues(0); first.fade.gain.value = 1;
-      void first.element.play().catch(() => {});
-      // iOS only lets an element play later if it was first started from a gesture.
       this.load(spare, this.following(first.track)); spare.fade.gain.value = 0;
-      void spare.element.play().then(() => { if (!this.crossing) { spare.element.pause(); spare.element.currentTime = 0; } }).catch(() => {});
-      return;
     }
-    void this.voices[this.current].element.play().catch(() => {});
-    if (this.crossing) void this.voices[1 - this.current].element.play().catch(() => {});
+    for (const voice of this.voices) {
+      if (this.active(voice)) void voice.element.play().then(() => { voice.unlocked = true; this.lastError = ''; }).catch((error: Error) => { this.lastError = error.name; });
+      else if (!voice.unlocked) void voice.element.play().then(() => {
+        voice.unlocked = true;
+        if (!this.active(voice)) { voice.element.pause(); voice.element.currentTime = 0; }
+      }).catch(() => {});
+    }
   }
+
+  private active(voice: Voice) { return voice === this.voices[this.current] || this.crossing; }
+
+  /** For the admin readout: is the audible voice actually playing, and why did the last start fail. */
+  lastError = '';
+  get sounding() { return this.started && !this.voices[this.current].element.paused; }
 
   pause() { for (const voice of this.voices) if (!voice.element.paused) voice.element.pause(); }
 
@@ -143,16 +156,28 @@ export class Soundscape {
 
   get environment() { return this.selected; }
 
+  /** A short Korean status line for the admin panel, to tell a device setting from a real defect. */
+  get status() {
+    const deck = this.decks.get(this.selected);
+    if (!this.context) return '환경음: 아직 시작 전(화면을 한 번 탭)';
+    const context = this.context.state === 'running' ? '' : ` · 오디오 ${this.context.state}`;
+    if (this.selected === 'rain') return `환경음: 비${context}`;
+    if (!this.playing) return `환경음: 일시정지${context}`;
+    if (deck?.sounding) return `환경음: 재생 중${context}`;
+    return `환경음: <b>막힘</b>${deck?.lastError ? ` (${deck.lastError})` : ''}${context}`;
+  }
+
   /** Starts or resumes the selected environment. Call from a user gesture. */
   play() {
-    if (this.playing) return;
     try {
       const first = !this.context;
       this.context ??= new AudioContext();
       if (!this.master) { this.master = this.context.createGain(); this.master.gain.value = 0; this.master.connect(this.context.destination); }
-      clearTimeout(this.suspendTimer); this.playing = true;
       if (this.context.state === 'suspended') void this.context.resume().catch(() => {});
       const deck = this.deck(this.selected);
+      // Already playing: a later tap only retries whatever a strict browser refused the first time.
+      if (this.playing) { deck?.play(); return; }
+      clearTimeout(this.suspendTimer); this.playing = true;
       if (deck) { deck.level.gain.cancelScheduledValues(0); deck.level.gain.value = 1; deck.play(); }
       const now = this.context.currentTime, gain = this.master.gain;
       gain.cancelScheduledValues(now); gain.setValueAtTime(gain.value, now);

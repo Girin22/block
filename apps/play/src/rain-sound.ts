@@ -24,7 +24,7 @@ export function rainLevel(intensity: number) {
   return RAIN_GAIN * i * i;
 }
 
-interface Voice { element: HTMLAudioElement; gain: GainNode; }
+interface Voice { element: HTMLAudioElement; gain: GainNode; unlocked: boolean; }
 
 export class RainAmbience {
   private context?: AudioContext;
@@ -48,11 +48,18 @@ export class RainAmbience {
           const element = new Audio(); element.src = this.url; element.preload = 'auto'; element.loop = false;
           const gain = this.context.createGain(); gain.gain.value = i === 0 ? 1 : 0;
           this.context.createMediaElementSource(element).connect(gain).connect(this.master);
-          this.voices.push({ element, gain });
+          this.voices.push({ element, gain, unlocked: false });
         }
-        // iOS only lets an element play later if it was first started from a gesture.
-        const spare = this.voices[1].element;
-        void spare.play().then(() => { if (!this.crossing) spare.pause(); spare.currentTime = 0; }).catch(() => {});
+      }
+      // Strict browsers (Chrome on iPhone) only let an element play later, from the frame loop, if it
+      // has played once inside a tap. Every tap retries until both voices have been allowed.
+      for (const voice of this.voices) {
+        if (voice.unlocked) continue;
+        const { element } = voice, wasPlaying = !element.paused;
+        void element.play().then(() => {
+          voice.unlocked = true;
+          if (!wasPlaying && !this.sounding(voice)) { element.pause(); if (voice !== this.voices[this.current]) element.currentTime = 0; }
+        }).catch(() => {});
       }
       if (this.context.state === 'suspended') void this.context.resume().catch(() => {});
     } catch { /* The rain simply stays silent. */ }
@@ -72,8 +79,15 @@ export class RainAmbience {
     this.pauseTimer = window.setTimeout(() => { if (this.paused) for (const voice of this.voices) if (!voice.element.paused) voice.element.pause(); }, 300);
   }
 
+  private intensity = 0;
+  /** Whether this voice should be audible right now, as the frame loop last decided. */
+  private sounding(voice: Voice) {
+    return this.intensity > 0 && !this.paused && !document.hidden && (voice === this.voices[this.current] || this.crossing);
+  }
+
   /** Called every frame with the shower strength, 0..1. */
   update(intensity: number) {
+    this.intensity = intensity;
     if (!this.context || !this.master || this.voices.length < 2 || document.hidden || this.paused) return;
     const now = this.context.currentTime;
     this.master.gain.setTargetAtTime(rainLevel(intensity), now, 0.12);

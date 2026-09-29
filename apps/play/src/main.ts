@@ -93,12 +93,16 @@ const rainAmbience = new RainAmbience(rainSoundURL);
 canvas.after(weather); const rain = new Rain(weather, rainAmbience);
 if (admin) {
   const panel = document.createElement('aside'); panel.id = 'admin'; panel.setAttribute('aria-label', '관리자 도구');
-  panel.innerHTML = '<span>관리자</span><p class="device" id="device-motion"></p>';
+  panel.innerHTML = '<span>관리자</span><p class="device" id="device-motion"></p><p class="device" id="device-audio"></p>';
   // The game ignores this setting; the readout only explains what a tester's phone is doing.
   const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)');
   const showMotion = () => { panel.querySelector('#device-motion')!.innerHTML = reduceMotion.matches ? '동작 줄이기 <b>켜짐</b> (앱 동작에는 영향 없음)' : '동작 줄이기 꺼짐'; };
   showMotion(); reduceMotion.addEventListener('change', showMotion);
   document.body.append(panel);
+  // Silent mode on an iPhone mutes this page's sound without any error, so "재생 중" with no sound
+  // points at the device, while "막힘" points at the browser refusing to start audio.
+  const audio = panel.querySelector('#device-audio')!;
+  setInterval(() => { audio.innerHTML = soundscape.status; }, 500);
 }
 let board = new Pavement(), started = new Date();
 const sound = new PlaySound(pauseButtonSoundURL, [hit01URL, hit05URL, hit06URL, hit12URL, hit14URL, hit16URL], fillDragURL);
@@ -114,7 +118,11 @@ function playAmbience() {
   if (soundscape.environment === 'rain') rainAmbience.unlock();
   rainAmbience.setPaused(false);
 }
-for (const type of ['pointerdown', 'keydown'] as const) document.addEventListener(type, () => { if (!paused && !menu.open) playAmbience(); }, { capture: true });
+// Touch-down starts sound early where browsers allow it; strict ones (Chrome on iPhone, Android Chrome)
+// only allow it when the finger lifts, so every tap retries until the ambience and effects are running.
+for (const type of ['pointerdown', 'pointerup', 'touchend', 'keydown'] as const) {
+  document.addEventListener(type, () => { if (!paused && !menu.open) { sound.unlock(); playAmbience(); } }, { capture: true });
+}
 let view: PlayScene;
 let x = SPAWN_X, rotation: Rotation = SPAWN_ROTATION;
 let gesture: { id: number; x: number; y: number; lastY: number; column: number; moved: boolean; lowered: boolean; axis?: SwipeAxis } | undefined;
