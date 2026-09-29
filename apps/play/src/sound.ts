@@ -2,10 +2,11 @@ import { clackVoice, synthesize } from './audio';
 import { nextTrack } from './ambience';
 
 /**
- * The pause button pops: the high pop pauses, the low one resumes. Both clips measure -30 LUFS
- * momentary; this brings them to the previous button sound's level (about -22), peaking near -4 dBFS.
+ * The pause button pops: the high pop pauses, the low one resumes. At their recorded level (-30 LUFS
+ * momentary) they sit about 5 dB under a block landing and 5 dB over the ambience, as a UI sound
+ * should. 2.5 (-22, the loudest sound in the game) was too loud in play, 2026-09-29.
  */
-export const BUTTON_GAIN = 2.5;
+export const BUTTON_GAIN = 1;
 export type ButtonSound = 'pause' | 'resume';
 /** The stone drag that opens a long run of white fillers. */
 export const DRAG_GAIN = 0.8;
