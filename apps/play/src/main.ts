@@ -32,11 +32,12 @@ import warblerURL from '../../../assets/audio/아침 새/L01534-002+B+KR_KSL2022
 import cricketURL from '../../../assets/audio/밤 개구리/L01330-002+B+KR_KSL2022_A0178+동물_곤충_강 마을의 극동귀뚜라미 울음소리_48khz320kbp_Mono.mp3?url';
 import woodFrogURL from '../../../assets/audio/밤 개구리/L01554-002+B+KR_KSL2022_A0402+동물_양서류_계곡 숲의 북방산개구리 울음소리, 새소리와 함께_48khz320kbps_Mono.mp3?url';
 import frogsURL from '../../../assets/audio/밤 개구리/개구리C.wav?url';
-import { environmentIcons } from './environment-icons';
+import { environmentIcons, type PickedEnvironment } from './environment-icons';
 
 // Planner preview: the pause screen can switch the ambient environment. Not decided for release yet.
-const ENVIRONMENTS: { id: Environment; label: string }[] = [
-  { id: 'morning', label: '아침' }, { id: 'day', label: '낮' }, { id: 'night', label: '밤' }, { id: 'rain', label: '비' },
+// Morning and night are switched off for now (2026-10-01); their recordings stay wired in below.
+const ENVIRONMENTS: { id: PickedEnvironment; label: string }[] = [
+  { id: 'off', label: '환경음 끄기' }, { id: 'day', label: '거리' }, { id: 'rain', label: '비' },
 ];
 document.querySelector('#app')!.innerHTML = `<main class="play">
   <canvas id="playfield" tabindex="0" aria-label="블록 쌓기. 좌우 스와이프로 이동, 탭으로 회전, 아래 스와이프로 배치."></canvas>
@@ -52,6 +53,7 @@ document.querySelector('#app')!.innerHTML = `<main class="play">
       <img class="stat-icon small" src="${tileImages.center}" alt="자동 채움 흰 블록"/>
       <span class="stat-text" id="white-count" aria-label="자동 채움 흰 블록 수">0</span>
       <button id="export">내보내기</button>
+      <button id="restart">다시 쌓기</button>
     </div>
   </section>
   <button id="pause" aria-label="일시정지" aria-pressed="false" aria-controls="pause-actions"><canvas id="pause-animation" width="40" height="40" aria-hidden="true"></canvas></button>
@@ -78,6 +80,9 @@ const exportButton = document.querySelector<HTMLButtonElement>('#export')!;
 exportButton.before(limitNote);
 const exportStatus = document.createElement('p'); exportStatus.id = 'export-status'; exportStatus.setAttribute('role', 'status');
 exportButton.after(exportStatus);
+// Starts a fresh session, exported or not. Exporting no longer resets, so the export stays available
+// above it in case the saved file did not come out and the player wants it again.
+const restartButton = document.querySelector<HTMLButtonElement>('#restart')!;
 // The receipt preview popup is legacy: kept for the browser checks, reached only with ?receipt.
 const legacyReceipt = new URLSearchParams(location.search).has('receipt');
 let exporting = false;
@@ -277,13 +282,18 @@ function resetSession() {
   createScene(); view?.pause(paused);
 }
 pauseButton.addEventListener('click', () => { sound.button(paused ? 'resume' : 'pause'); if (paused) resume(); else pause(); });
+restartButton.addEventListener('click', () => {
+  if (!paused || menu.open || exporting) return;
+  resetSession(); resume();
+});
 document.addEventListener('keydown', event => {
   if (event.code === 'Escape' && paused && !menu.open) { event.preventDefault(); resume(); }
 });
 exportButton.addEventListener('click', async () => {
   if (!paused || menu.open || exporting) return;
   if (legacyReceipt) { void openReceipt(); return; }
-  // Save straight away: a transparent PNG of the whole pavement, then a fresh session.
+  // Save straight away: a transparent PNG of the whole pavement. The session is kept until the player
+  // chooses to start over.
   exporting = true; exportButton.disabled = true; exportButton.textContent = '저장 중'; exportStatus.textContent = '';
   try {
     const receipt = new Receipt(board, started);
@@ -293,7 +303,6 @@ exportButton.addEventListener('click', async () => {
         .catch(() => receipt.svgFile());
     } else file = await receipt.svgFile();
     downloadFile(file);
-    resetSession(); resume();
   } catch {
     exportStatus.textContent = '저장하지 못했어요. 다시 시도해 주세요.';
   } finally { exporting = false; exportButton.disabled = false; exportButton.textContent = '내보내기'; }

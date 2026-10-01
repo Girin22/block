@@ -6,9 +6,10 @@
  * seconds of the current one and the two cross over at equal power. Two streamed voices per deck take
  * turns, which keeps the files out of memory, and gain nodes make fades work on iOS, where
  * element.volume is fixed. Rain is not a deck: its sound follows the on-screen shower (rain-sound.ts).
+ * 'off' has no deck either, so choosing it simply fades the ambience out.
  */
 
-export type Environment = 'morning' | 'day' | 'night' | 'rain';
+export type Environment = 'off' | 'morning' | 'day' | 'night' | 'rain';
 export interface Track {
   url: string;
   /** Integrated loudness of the recording, in LUFS. */
@@ -177,6 +178,7 @@ export class Soundscape {
     const deck = this.decks.get(this.selected);
     if (!this.context) return '환경음: 아직 시작 전(화면을 한 번 탭)';
     const context = this.context.state === 'running' ? '' : ` · 오디오 ${this.context.state}`;
+    if (this.selected === 'off') return `환경음: 꺼짐${context}`;
     if (this.selected === 'rain') return `환경음: 비${context}`;
     if (!this.playing) return `환경음: 일시정지${context}`;
     if (deck?.sounding) return `환경음: 재생 중${context}`;
