@@ -119,7 +119,10 @@ const soundscape = new Soundscape({
   morning: { repeat: true, tracks: [{ url: buntingURL, lufs: -36.2 }, { url: sparrowURL, lufs: -35.2 }, { url: warblerURL, lufs: -27.8 }] },
   night: { repeat: true, tracks: [{ url: cricketURL, lufs: -29.5 }, { url: woodFrogURL, lufs: -47.9 }, { url: frogsURL, lufs: -28.2, trim: -3 }] },
 });
-/** Ambience plays while the game plays and holds while it is paused. Browsers need a gesture to start it. */
+/**
+ * Ambience keeps playing on the pause screen (the picker's X turns it off); it only holds while the page
+ * is hidden. Browsers need a gesture to start it.
+ */
 function playAmbience() {
   soundscape.play();
   if (soundscape.environment === 'rain') rainAmbience.unlock();
@@ -128,7 +131,12 @@ function playAmbience() {
 // Touch-down starts sound early where browsers allow it; strict ones (Chrome on iPhone, Android Chrome)
 // only allow it when the finger lifts, so every tap retries until the ambience and effects are running.
 for (const type of ['pointerdown', 'pointerup', 'touchend', 'click', 'keydown'] as const) {
-  document.addEventListener(type, () => { if (!paused && !menu.open) { sound.unlock(); playAmbience(); } }, { capture: true });
+  document.addEventListener(type, () => {
+    if (menu.open || document.hidden) return;
+    // Effects only wake for play; the pause screen keeps their context asleep.
+    if (!paused) sound.unlock();
+    playAmbience();
+  }, { capture: true });
 }
 // The ambience should already be there when the page opens. Browsers that allow autoplay (desktop
 // Chrome on a site visited often) start it now; the rest refuse until the first tap, which the
@@ -233,7 +241,6 @@ function updatePauseUI() {
 }
 function pause() {
   cancelGesture(); playTimer.pause(); view?.pause(true); sound.pause();
-  soundscape.pause(); rainAmbience.setPaused(true);
   if (paused) return;
   paused = true;
   document.querySelector('#path-length')!.textContent = formatMeters(board.filled);
@@ -386,8 +393,11 @@ menu.addEventListener('close', () => {
   if (menu.returnValue === 'saved') resume();
   else exportButton.focus();
 });
-document.addEventListener('visibilitychange', () => { if (document.hidden) pause(); });
-window.addEventListener('pagehide', () => { gesture = undefined; playTimer.pause(); sound.pause(); soundscape.pause(); rainAmbience.setPaused(true); });
+function holdAmbience() { soundscape.pause(); rainAmbience.setPaused(true); }
+// Leaving the page pauses the game and holds the ambience; coming back brings the ambience back on the
+// pause screen (or with the next tap, where the browser wants one).
+document.addEventListener('visibilitychange', () => { if (document.hidden) { pause(); holdAmbience(); } else if (!menu.open) playAmbience(); });
+window.addEventListener('pagehide', () => { gesture = undefined; playTimer.pause(); sound.pause(); holdAmbience(); });
 window.addEventListener('pageshow', event => {
   if (!event.persisted) return;
   // A full navigation back from the browser cache starts a fresh, unsaved canvas.
