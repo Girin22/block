@@ -80,6 +80,7 @@ class Deck {
       const voice: Voice = { element, trim, fade, track: -1, unlocked: false };
       element.addEventListener('timeupdate', () => this.watch(voice));
       element.addEventListener('ended', () => this.finish(voice));
+      element.addEventListener('error', () => { this.lastError = 'MediaError'; });
       this.voices.push(voice);
     }
   }
@@ -102,12 +103,25 @@ class Deck {
       this.load(spare, this.following(first.track)); spare.fade.gain.value = 0;
     }
     for (const voice of this.voices) {
+      this.revive(voice);
       if (this.active(voice)) void voice.element.play().then(() => { voice.unlocked = true; this.lastError = ''; }).catch((error: Error) => { this.lastError = error.name; });
       else if (!voice.unlocked) void voice.element.play().then(() => {
         voice.unlocked = true;
         if (!this.active(voice)) { voice.element.pause(); voice.element.currentTime = 0; }
       }).catch(() => {});
     }
+  }
+
+  /**
+   * A stream left paused for a long time can lose its connection, after which the element stays in
+   * an error state and never plays again. Reloading it at the same position brings it back.
+   */
+  private revive(voice: Voice) {
+    const { element } = voice;
+    if (!element.error || voice.track < 0) return;
+    const at = element.currentTime;
+    element.src = this.tracks[voice.track].url; element.load();
+    element.addEventListener('loadedmetadata', () => { element.currentTime = at; }, { once: true });
   }
 
   private active(voice: Voice) { return voice === this.voices[this.current] || this.crossing; }
@@ -191,7 +205,9 @@ export class Soundscape {
       const first = !this.context;
       this.context ??= new AudioContext();
       if (!this.master) { this.master = this.context.createGain(); this.master.gain.value = 0; this.master.connect(this.context.destination); }
-      if (this.context.state === 'suspended') void this.context.resume().catch(() => {});
+      // Safari leaves the context 'interrupted', not 'suspended', after the phone locks or another app
+      // takes the audio; it only comes back with resume() from a tap.
+      if (this.context.state !== 'running') void this.context.resume().catch(() => {});
       const deck = this.deck(this.selected);
       // Already playing: a later tap only retries whatever a strict browser refused the first time.
       if (this.playing) { deck?.play(); return; }

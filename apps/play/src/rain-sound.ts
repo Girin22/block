@@ -64,7 +64,9 @@ export class RainAmbience {
           if (!wasPlaying && !this.sounding(voice)) { element.pause(); if (voice !== this.voices[this.current]) element.currentTime = 0; }
         }).catch(() => {});
       }
-      if (this.context.state === 'suspended') void this.context.resume().catch(() => {});
+      // Safari leaves the context 'interrupted', not 'suspended', after the phone locks or another app
+      // takes the audio; it only comes back with resume() from a tap.
+      if (this.context.state !== 'running') void this.context.resume().catch(() => {});
     } catch { /* The rain simply stays silent. */ }
   }
 

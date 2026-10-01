@@ -42,7 +42,9 @@ export class PlaySound {
     try {
       clearTimeout(this.suspendTimer); this.pauseToken++;
       this.context ??= new AudioContext();
-      if (this.context.state === 'suspended') void this.context.resume().catch(() => {});
+      // Safari leaves the context 'interrupted', not 'suspended', after the phone locks or another app
+      // takes the audio; it only comes back with resume() from a tap.
+      if (this.context.state !== 'running') void this.context.resume().catch(() => {});
       if (!this.output) {
         // A limiter, not a compressor: it only catches peaks when many hits stack up. The recorded hits
         // already peak near -3 dBFS, and the old -10 dB / 8:1 setting (tuned for the synthesized clack)
