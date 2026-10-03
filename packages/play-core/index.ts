@@ -18,7 +18,9 @@ export function tileColor(tile: Tile) { return tile.white ? '#f5f0df' : COLORS[(
 
 export class Pavement {
   readonly tiles: Tile[] = [];
-  private cells = new Map<string, number>();
+  /** Tile id per cell (0 = empty), row by row from the ground. A flat typed array keeps a full
+   *  172,800-block session to a few MB and makes every collision test a single index. */
+  private cells = new Int32Array(WIDTH * 256);
   private columns = Array<number>(WIDTH).fill(0);
   private floor = 0;
   get floorY() { return this.floor; }
@@ -47,7 +49,7 @@ export class Pavement {
     if (!Number.isInteger(x) || x < 0 || x + w > WIDTH || y < this.floor - 0.00001) return false;
     for (let cx = x; cx < x + w; cx++) {
       for (let cy = Math.floor(y + 0.00001); cy < Math.ceil(y + h - 0.00001); cy++) {
-        if (this.cells.has(`${cx},${cy}`)) return false;
+        if (this.at(cx, cy)) return false;
       }
     }
     return true;
@@ -58,7 +60,7 @@ export class Pavement {
     let bottom = this.floor;
     for (let cx = x; cx < x + w; cx++) {
       for (let cy = Math.floor(y + 0.00001) - 1; cy >= bottom; cy--) {
-        if (this.cells.has(`${cx},${cy}`)) { bottom = Math.max(bottom, cy + 1); break; }
+        if (this.at(cx, cy)) { bottom = Math.max(bottom, cy + 1); break; }
       }
     }
     return { x, y: bottom, w, h, rotation };
@@ -92,19 +94,21 @@ export class Pavement {
     }
     return added;
   }
-  private empty(x: number, y: number) { return x >= 0 && x < WIDTH && y >= 0 && !this.cells.has(`${x},${y}`); }
+  /** The tile id filling a cell, or 0. */
+  private at(x: number, y: number) { const i = y * WIDTH + x; return i < this.cells.length ? this.cells[i] : 0; }
+  private empty(x: number, y: number) { return x >= 0 && x < WIDTH && y >= 0 && !this.at(x, y); }
   /** Empty regions touching the tile that can no longer reach the open sky. Walls, the ground and
    *  tiles bound a region; the camera floor does not, so a space can extend below the screen. */
   private enclosedAround(tile: Tile): Cell[][] {
     // `open` holds cells proven to reach the sky, `sealed` cells already claimed by an enclosed region.
-    const regions: Cell[][] = [], open = new Set<string>(), sealed = new Set<string>();
+    const regions: Cell[][] = [], open = new Set<number>(), sealed = new Set<number>();
     for (let cy = tile.y - 1; cy <= tile.y + tile.h; cy++) {
       for (let cx = tile.x - 1; cx <= tile.x + tile.w; cx++) {
         const edge = cy < tile.y || cy >= tile.y + tile.h, side = cx < tile.x || cx >= tile.x + tile.w;
-        const key = `${cx},${cy}`;
+        const key = cy * WIDTH + cx;
         if (edge === side || !this.empty(cx, cy) || open.has(key) || sealed.has(key)) continue;
         const region = this.flood(cx, cy, open);
-        if (region) for (const [x, y] of region) sealed.add(`${x},${y}`);
+        if (region) for (const [x, y] of region) sealed.add(y * WIDTH + x);
         if (region) regions.push(region);
       }
     }
@@ -117,10 +121,10 @@ export class Pavement {
    * A walk that reaches the sky, or any cell an earlier walk proved open, marks everything it visited
    * as open, since all of it is connected to the sky.
    */
-  private flood(x: number, y: number, open: Set<string>): Cell[] | undefined {
-    const visited = new Set<string>(), rows = new Map<number, Cell[]>(); let top = y;
+  private flood(x: number, y: number, open: Set<number>): Cell[] | undefined {
+    const visited = new Set<number>(), rows = new Map<number, Cell[]>(); let top = y;
     const push = (x: number, y: number) => {
-      const key = `${x},${y}`; if (visited.has(key)) return; visited.add(key);
+      const key = y * WIDTH + x; if (visited.has(key)) return; visited.add(key);
       let row = rows.get(y); if (!row) rows.set(y, row = []); row.push([x, y]); if (y > top) top = y;
     };
     const opened = () => { for (const key of visited) open.add(key); return undefined; };
@@ -131,7 +135,7 @@ export class Pavement {
       if (top < 0) return cells;
       const [cx, cy] = rows.get(top)!.pop()!;
       // Nothing sits at or above the stack's height, so a region that gets there is open.
-      if (cy >= this.height || open.has(`${cx},${cy}`)) return opened();
+      if (cy >= this.height || open.has(cy * WIDTH + cx)) return opened();
       cells.push([cx, cy]);
       if (this.empty(cx - 1, cy)) push(cx - 1, cy);
       if (this.empty(cx + 1, cy)) push(cx + 1, cy);
@@ -142,8 +146,12 @@ export class Pavement {
   private insert(data: Omit<Tile, 'id'>): Tile {
     const tile = { ...data, id: this.tiles.length + 1 }; this.tiles.push(tile);
     this.filledCells += tile.w * tile.h;
+    const end = (tile.y + tile.h) * WIDTH;
+    if (end > this.cells.length) {
+      const grown = new Int32Array(Math.max(end, this.cells.length * 2)); grown.set(this.cells); this.cells = grown;
+    }
     for (let x = tile.x; x < tile.x + tile.w; x++) {
-      for (let y = tile.y; y < tile.y + tile.h; y++) this.cells.set(`${x},${y}`, tile.id);
+      for (let y = tile.y; y < tile.y + tile.h; y++) this.cells[y * WIDTH + x] = tile.id;
       this.columns[x] = Math.max(this.columns[x], tile.y + tile.h);
     }
     this.height = Math.max(this.height, tile.y + tile.h); return tile;

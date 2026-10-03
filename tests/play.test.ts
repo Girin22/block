@@ -156,3 +156,19 @@ describe('minimal free placement', () => {
     expect(new Pavement().tiles).toHaveLength(0);
   });
 });
+describe('board storage', () => {
+  it('keeps collisions and fillers exact after the stack outgrows its first rows', () => {
+    const board = new Pavement();
+    // A tower 600 rows high in column 0 forces the cell store to grow several times.
+    for (let i = 0; i < 300; i++) board.drop(0, 1);
+    expect(board.height).toBe(600);
+    expect(board.canPlace(0, 599, 1)).toBe(false);
+    expect(board.canPlace(1, 599, 1)).toBe(true);
+    expect(board.landingFrom(0, 610, 1).y).toBe(600);
+    // Sealing a 1-cell hole high up still fills it with one white tile.
+    board.advanceFloor(590);
+    board.place(1, 590, 1); board.place(2, 590, 0); board.place(3, 591, 1); board.place(1, 592, 0);
+    const fillers = board.tiles.filter(tile => tile.white);
+    expect(fillers.map(({ x, y, w, h }) => [x, y, w, h])).toEqual([[2, 591, 1, 1]]);
+  });
+});

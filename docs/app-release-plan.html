@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BlockStep 앱 출시 계획</title>
+<style>
+:root{--bg:#f6f5f1;--card:#fff;--ink:#22231f;--sub:#62655c;--line:#e2e0d8;--accent:#3c7a5c;--accent-soft:#e3efe7;--warn:#9a5b12;--warn-soft:#fbefdc;--code:#efede6}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#171816;--card:#20221f;--ink:#e9e8e2;--sub:#a3a69c;--line:#34372f;--accent:#7cc39d;--accent-soft:#233229;--warn:#f0b56a;--warn-soft:#3a2d1b;--code:#2a2c27}}
+:root[data-theme="dark"]{--bg:#171816;--card:#20221f;--ink:#e9e8e2;--sub:#a3a69c;--line:#34372f;--accent:#7cc39d;--accent-soft:#233229;--warn:#f0b56a;--warn-soft:#3a2d1b;--code:#2a2c27}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.7 -apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Pretendard","Malgun Gothic",sans-serif;word-break:keep-all}
+main{max-width:860px;margin:0 auto;padding:40px 16px 80px}
+h1{font-size:1.9rem;line-height:1.3;margin:0 0 6px}
+.lead{color:var(--sub);margin:0 0 28px}
+nav{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 18px;margin-bottom:32px}
+nav ol{margin:0;padding-left:20px;columns:2;column-gap:28px}
+nav a{color:var(--accent);text-decoration:none}
+@media(max-width:560px){nav ol{columns:1}}
+section{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px 22px 10px;margin:0 0 22px}
+h2{font-size:1.3rem;margin:0 0 12px;scroll-margin-top:16px}
+h3{font-size:1.05rem;margin:22px 0 8px}
+p,li{margin:0 0 10px}
+ul,ol{padding-left:22px}
+code{background:var(--code);padding:1px 6px;border-radius:5px;font-size:.9em;word-break:break-all}
+.table-wrap{overflow-x:auto;margin:0 0 14px}
+table{border-collapse:collapse;width:100%;font-size:.94rem}
+th,td{border-bottom:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top}
+th{color:var(--sub);font-weight:600;white-space:nowrap}
+.tag{display:inline-block;font-size:.78rem;font-weight:700;padding:1px 8px;border-radius:99px;background:var(--accent-soft);color:var(--accent);margin-right:6px;white-space:nowrap}
+.tag.warn{background:var(--warn-soft);color:var(--warn)}
+.note{background:var(--accent-soft);border-radius:10px;padding:12px 16px;margin:0 0 14px}
+.note.warn{background:var(--warn-soft)}
+.steps{counter-reset:s;list-style:none;padding:0}
+.steps>li{counter-increment:s;position:relative;padding-left:40px;margin-bottom:14px}
+.steps>li::before{content:counter(s);position:absolute;left:0;top:1px;width:26px;height:26px;border-radius:50%;background:var(--accent);color:var(--card);font-weight:700;font-size:.85rem;display:flex;align-items:center;justify-content:center}
+.check li{list-style:"☐  "}
+footer{color:var(--sub);font-size:.85rem;text-align:center;margin-top:30px}
+</style>
+</head>
+<body>
+<main>
+<h1>BlockStep 앱 출시 계획</h1>
+<p class="lead">웹 배포본을 그대로 Android·iOS 앱으로 패키징하기 위한 검토 결과와 확정 사항, 출시 절차 안내 · 2026-10-01</p>
+
+<nav aria-label="목차"><ol>
+<li><a href="#decisions">확정된 결정</a></li>
+<li><a href="#diagnosis">현재 상태 진단</a></li>
+<li><a href="#capacitor">패키징 방식 (Capacitor)과 단점</a></li>
+<li><a href="#music">다른 앱 음악과의 관계</a></li>
+<li><a href="#size">용량 최적화</a></li>
+<li><a href="#perf">발열·렉 최적화</a></li>
+<li><a href="#devices">기기별 확인 환경</a></li>
+<li><a href="#admin">관리자 조절 패널</a></li>
+<li><a href="#analytics">유저 데이터 분석 (Firebase)</a></li>
+<li><a href="#play">Google Play 테스트 빌드 올리기</a></li>
+<li><a href="#ios">iOS 처음부터 출시하기 (Mac 없이)</a></li>
+<li><a href="#roadmap">진행 순서와 필요한 준비물</a></li>
+</ol></nav>
+
+<section id="decisions">
+<h2>1. 확정된 결정</h2>
+<div class="table-wrap"><table>
+<tr><th>항목</th><th>결정</th></tr>
+<tr><td>패키징</td><td>Capacitor (웹 게임을 그대로 앱에 넣는 방식)</td></tr>
+<tr><td>화면 방향</td><td>모든 기기 세로 고정. 태블릿·폴드 펼침 화면도 세로 고정에 게임 화면을 가운데 배치</td></tr>
+<tr><td>자동 낙하 속도</td><td>코드 기준 초당 1.1칸이 정답. 문서(AGENTS.md)의 1.4칸 표기를 고침</td></tr>
+<tr><td>아침·밤 환경음</td><td>앱에서 제외 (원본 파일은 보존)</td></tr>
+<tr><td>용량 최적화</td><td>계획대로 진행. 단 Lottie 일시정지 애니메이션은 지금과 <b>완전히 동일</b>해야 함</td></tr>
+<tr><td>Mac 장비</td><td>없음, 클라우드 Mac 빌드(Codemagic) 사용</td></tr>
+<tr><td>iOS</td><td>개발자 등록부터 처음 시작</td></tr>
+<tr><td>Android</td><td>Play Console 개발자 등록 완료, 내부 테스트로 본인 태블릿에서 바로 확인</td></tr>
+<tr><td>분석 도구</td><td>Firebase Analytics</td></tr>
+<tr><td>다른 앱 음악</td><td>환경음 끄기(X)일 때 다른 앱 음악과 함께 재생, 환경음을 켜면 BlockStep 환경음 우선 (아래 4장)</td></tr>
+</table></div>
+</section>
+
+<section id="diagnosis">
+<h2>2. 현재 상태 진단</h2>
+<p>현재 웹 빌드(<code>dist/</code>)는 <b>55MB</b>이며, 대부분 소리 파일입니다.</p>
+<div class="table-wrap"><table>
+<tr><th>항목</th><th>크기</th><th>비고</th></tr>
+<tr><td>거리·비 환경음</td><td>약 24MB</td><td>320kbps MP3라 환경음 용도로는 과함</td></tr>
+<tr><td>아침·밤 환경음 (비활성)</td><td>약 29MB</td><td><code>개구리C.wav</code> 한 개가 13.6MB</td></tr>
+<tr><td>Lottie 재생기 (wasm)</td><td>1.2MB</td><td>일시정지 아이콘 하나에 쓰임</td></tr>
+<tr><td>손글씨 폰트</td><td>0.6MB</td><td>온보딩 문구 수정에 대비해 그대로 유지</td></tr>
+<tr><td>게임 코드 + Three.js</td><td>약 1MB</td><td>문제 없음</td></tr>
+</table></div>
+<ul>
+<li><span class="tag">이미 좋음</span>화면 아래로 사라진 블록은 그리지 않고 제거합니다. 환경음은 스트리밍으로 메모리를 아낍니다.</li>
+<li><span class="tag warn">개선</span>보드가 모든 칸을 문자열 키로 저장합니다. 17만 블록에 흰 타일까지 약 40만 칸이면 메모리가 수십 MB로 늘어납니다.</li>
+<li><span class="tag warn">개선</span>일시정지나 대기 중에도 매 프레임 다시 그립니다. 120Hz 기기에서는 초당 120번이고, 발열과 배터리 소모의 주원인입니다.</li>
+<li><span class="tag warn">개선</span>빗방울과 동심원을 매번 새로 만들고 버려서 순간적인 끊김이 생길 수 있습니다.</li>
+</ul>
+</section>
+
+<section id="capacitor">
+<h2>3. 패키징 방식: Capacitor</h2>
+<p>Capacitor는 지금의 웹 게임을 앱 안에 그대로 넣고, 휴대폰 내장 브라우저 엔진(Android WebView, iOS WKWebView)으로 실행하는 <b>네이티브 껍데기</b>입니다.</p>
+<ul>
+<li>화면, 소리, 조작이 웹 배포본과 같아 퀄리티가 떨어지지 않습니다.</li>
+<li>자산을 모두 앱 안에 넣어 <b>오프라인에서도 동작</b>합니다. 애플의 "웹사이트를 감싸기만 한 앱" 거절 사유(심사 지침 4.2)를 피하는 핵심입니다.</li>
+<li>앱 껍데기는 약 3~5MB입니다.</li>
+<li>나중에 만보기(Health Connect, HealthKit)도 플러그인으로 붙일 수 있습니다.</li>
+</ul>
+<h3>단점과 대응</h3>
+<div class="table-wrap"><table>
+<tr><th>단점</th><th>BlockStep에서의 영향</th><th>대응</th></tr>
+<tr><td>네이티브 엔진보다 약간의 성능 손실</td><td>작음. 이 게임은 2D 수준이고, WebGL은 크롬·사파리와 같은 엔진입니다</td><td>성능 최적화 후 저가형 안드로이드에서 실측</td></tr>
+<tr><td>안드로이드 기기마다 WebView 버전이 다름</td><td>아주 오래된 기기에서 3D 화면이 안 열릴 수 있음</td><td>최소 지원 버전 지정 (Android 7 이상), 이미 있는 "3D 화면을 열 수 없어요" 안내 유지</td></tr>
+<tr><td>iOS 웹뷰 메모리 제한이 엄격함</td><td>17만 블록 내보내기 때 위험</td><td>지금도 256행씩 나눠 만드는 방식이라 대응돼 있음. 네이티브 파일 쓰기로 메모리를 더 줄임</td></tr>
+<tr><td>소리 세션, 사진 저장은 웹 기능만으로 부족</td><td>사진 앱 저장, 다른 앱 음악과의 관계</td><td>공식·소형 플러그인으로 해결 (아래 4장)</td></tr>
+<tr><td>앱 시작 시 웹뷰 로딩 0.3~1초</td><td>첫 화면이 잠깐 늦을 수 있음</td><td>스플래시 화면으로 가림</td></tr>
+<tr><td>애플 4.2 심사 위험</td><td>낮음. 오프라인 게임이기 때문</td><td>모든 자산을 앱에 내장, 외부 웹 로딩 없음</td></tr>
+<tr><td>Mac 없이는 iOS 디버깅이 어려움</td><td>iOS 전용 문제를 바로 보기 어려움</td><td>TestFlight 실기기 테스트, 관리자 패널의 기기 상태 표시 활용</td></tr>
+<tr><td>수정 사항 반영에 스토어 심사 필요</td><td>웹처럼 즉시 반영되지 않음</td><td>내부 테스트 트랙과 TestFlight로 빠르게 확인</td></tr>
+</table></div>
+<p class="note">결론: 지금 수준의 게임에는 Capacitor가 가장 적합합니다. 다시 개발하는 방식(Unity, Flutter 등)보다 퀄리티 유지와 일정 면에서 확실히 유리합니다.</p>
+</section>
+
+<section id="music">
+<h2>4. 다른 앱 음악과의 관계 (질문 7)</h2>
+<p><b>가능합니다.</b> 환경음 선택에 따라 휴대폰의 "소리 모드"를 바꿉니다.</p>
+<div class="table-wrap"><table>
+<tr><th>환경음 선택</th><th>다른 앱 음악 (멜론, 스포티파이 등)</th><th>블록 효과음</th></tr>
+<tr><td>끄기 (X)</td><td><b>계속 재생</b></td><td>음악 위에 섞여서 남</td></tr>
+<tr><td>거리, 비</td><td><b>멈춤</b> (BlockStep 환경음 우선)</td><td>그대로 남</td></tr>
+</table></div>
+<ul>
+<li><b>iOS:</b> 끄기일 때는 "Ambient" 모드(다른 음악과 섞임), 환경음이 켜지면 "Solo Ambient" 모드(다른 음악을 멈춤)로 바꿉니다. 두 모드 모두 무음 스위치를 켜면 소리가 꺼집니다. 지금 웹 버전과 같은 동작이고, 대부분의 캐주얼 게임이 이렇게 합니다.</li>
+<li><b>Android:</b> 환경음이 켜지면 "오디오 포커스"를 요청해 다른 앱 음악을 멈추고, 끄면 포커스를 돌려줍니다. 다만 다른 앱이 자동으로 다시 재생되는지는 그 앱의 정책에 따릅니다(스포티파이는 보통 사용자가 직접 다시 재생).</li>
+<li>둘 다 작은 네이티브 플러그인으로 구현하며, 실기기에서 확인합니다.</li>
+</ul>
+<p class="note warn">확인 부탁: 환경음이 켜져 있을 때 <b>무음 스위치를 켜면 환경음도 꺼지는</b> 위 동작으로 진행해도 될까요? 무음이어도 환경음이 나오게 할 수도 있지만, 공공장소에서 갑자기 소리가 날 위험이 있어 권하지 않습니다.</p>
+</section>
+
+<section id="size">
+<h2>5. 용량 최적화</h2>
+<div class="table-wrap"><table>
+<tr><th>작업</th><th>효과</th><th>퀄리티 보장 방법</th></tr>
+<tr><td>아침·밤 소리 제외 (원본 보존)</td><td>−29MB</td><td>현재 선택할 수 없는 소리라 영향 없음</td></tr>
+<tr><td>거리·비 환경음을 AAC 128kbps 모노로 재인코딩</td><td>약 24MB → 약 9MB</td><td>A/B 비교 페이지를 드리고, 귀로 차이를 못 느끼는 것을 확인받은 뒤 적용</td></tr>
+<tr><td>Lottie 재생기를 가벼운 공식 재생기(lottie-web)로 교체</td><td>약 −1MB</td><td>두 재생기의 모든 프레임을 픽셀 단위로 비교하고, 차이가 있으면 <b>교체하지 않음</b></td></tr>
+<tr><td>효과음 WAV, 손글씨 폰트, 블록 이미지</td><td>유지</td><td>이득이 작고 품질과 직결되어 그대로 둠</td></tr>
+</table></div>
+<p><b>예상 설치 크기: 55MB → 약 15MB 안팎</b></p>
+</section>
+
+<section id="perf">
+<h2>6. 발열·렉 최적화</h2>
+<ol>
+<li><b>필요할 때만 그리기:</b> 일시정지나 대기 중이면서 비가 없을 때는 그리기를 쉽니다. 조작 중에는 기기 최고 주사율(120Hz)을 그대로 씁니다.</li>
+<li><b>보드 저장 구조 압축:</b> 문자열 Map을 숫자 배열로 바꿔 17만 블록에서도 메모리를 수 MB로 유지합니다. 게임 규칙은 동일하며 단위 테스트로 검증합니다.</li>
+<li><b>비 객체 재사용:</b> 빗방울, 동심원, 젖은 자국을 미리 만들어 돌려 써서 끊김을 없앱니다.</li>
+<li><b>앱이 백그라운드로 가면</b> 그리기, 효과음, 환경음을 완전히 멈춥니다.</li>
+<li><b>묶음 그리기(인스턴싱):</b> 화면 안 블록은 최대 약 150개라 이미 부담이 작습니다. 게다가 블록이 겹치는 순서가 미세하게 달라질 위험이 있습니다. 그래서 측정해 보고 효과가 있을 때만 적용합니다.</li>
+<li><b>검증:</b> <code>?stress=</code>로 17만 블록 상황을 만들어 프레임, 메모리, 그리는 횟수를 전후로 비교합니다.</li>
+</ol>
+</section>
+
+<section id="devices">
+<h2>7. 기기별 확인 환경</h2>
+<h3>① 기기 미리보기 페이지 (새로 구현, 개발 전용)</h3>
+<p>한 화면에 아래 기기들의 크기로 게임을 동시에 띄웁니다. 각각 세로·가로 전환과 노치·홈 바 같은 안전 영역 흉내를 지원합니다. 출시 빌드에는 들어가지 않습니다.</p>
+<ul>
+<li>갤럭시 S 시리즈, Z 플립, Z 폴드(접힘·펼침)</li>
+<li>아이폰 SE, 일반, Pro Max</li>
+<li>아이패드, 갤럭시 탭</li>
+</ul>
+<p>앱은 세로 고정이지만, 가로 미리보기에서는 태블릿을 가로로 들었을 때 회전하지 않는 화면을 확인할 수 있습니다. 화면 비율과 배치만 흉내 내므로 성능과 소리는 실기기에서 확인해야 합니다.</p>
+<h3>② 실제 에뮬레이터</h3>
+<ul>
+<li><b>Android Studio</b>(무료, Windows): 픽셀 폰, 폴더블, 태블릿 에뮬레이터를 쓸 수 있습니다. 앱 빌드에도 필요하므로 설치가 필요합니다(10장).</li>
+<li><b>iOS 시뮬레이터:</b> Mac 전용이라 대신 TestFlight로 실제 아이폰에서 확인합니다.</li>
+</ul>
+</section>
+
+<section id="admin">
+<h2>8. 관리자 조절 패널</h2>
+<ul>
+<li>항목마다 <b>게이지바와 숫자 입력칸</b>을 둡니다. 바꾸면 게임에 바로 반영됩니다.</li>
+<li>'기본값으로' 버튼과 '설정값 복사' 버튼을 둡니다. 기획자가 확정한 값을 복사해 전달하면, 개발에서 정식 기본값으로 반영합니다.</li>
+<li>웹에서는 주소 뒤에 <code>?admin</code>을 붙여 엽니다. 앱에서는 테스트 빌드에서만 열 수 있고, 출시 빌드에는 들어가지 않습니다.</li>
+</ul>
+<div class="table-wrap"><table>
+<tr><th>#</th><th>항목</th><th>현재 기본값</th></tr>
+<tr><td>1</td><td>비가 내리는 속도</td><td>빗줄기 낙하 속도 기준 100%</td></tr>
+<tr><td>2</td><td>빗방울 동심원 크기</td><td>7~14px</td></tr>
+<tr><td>3</td><td>일시정지 화면 상하 간격</td><td>화면 높이에 따라 자동 (배율 100%)</td></tr>
+<tr><td>4</td><td>블록 자연 낙하 속도</td><td>초당 1.1칸</td></tr>
+<tr><td>5</td><td>빈 공간 블록 채움 속도</td><td>기준 100% (타일 간격 0.2초)</td></tr>
+<tr><td>6·7</td><td>온보딩 글씨 속도·내용</td><td>온보딩을 만들 때 추가</td></tr>
+</table></div>
+</section>
+
+<section id="analytics">
+<h2>9. 유저 데이터 분석 (Firebase Analytics)</h2>
+<p><b>별도 관리자 페이지는 만들지 않아도 됩니다.</b> Firebase 콘솔이 리텐션(D1, D7, D30), 활성 사용자, 세션 길이, 퍼널(이탈 지점)을 기본 대시보드로 보여줍니다. 더 깊은 분석이 필요해지면 BigQuery로 원본 데이터를 내보내 직접 쿼리할 수 있습니다.</p>
+<h3>수집할 이벤트 (초안)</h3>
+<div class="table-wrap"><table>
+<tr><th>이벤트</th><th>알 수 있는 것</th></tr>
+<tr><td>앱 실행 → 첫 터치 → 첫 블록 → 블록 10·100·1,000개</td><td>어디서 이탈하는지 (퍼널)</td></tr>
+<tr><td>환경음 선택, 환경별 재생 시간</td><td>어떤 환경음을 많이 쓰는지</td></tr>
+<tr><td>세션 시작·종료, 플레이 시간 (Firebase 자동 수집)</td><td>얼마나 자주, 오래 즐기는지</td></tr>
+<tr><td>일시정지, 내보내기 시도·완료·취소, 새로 쌓기</td><td>핵심 기능 사용률</td></tr>
+</table></div>
+<ul>
+<li>걸음 수와 건강 데이터는 <b>보내지 않습니다</b>.</li>
+<li>광고 ID를 쓰지 않으므로 iOS 추적 동의 팝업은 필요 없습니다.</li>
+<li>필요한 것: 개인정보처리방침 웹페이지(노션 공개 페이지도 가능), 스토어별 데이터 수집 신고(애플 '앱 개인정보', 구글 '데이터 보안').</li>
+<li>개발 빌드와 웹 테스트 데이터는 분석에 섞이지 않게 구분합니다.</li>
+</ul>
+<h3>직접 하실 일: Firebase 프로젝트 만들기</h3>
+<ol class="steps">
+<li><code>console.firebase.google.com</code>에 Play Console과 같은 구글 계정으로 로그인 → '프로젝트 추가' → 이름 <code>BlockStep</code> → Google 애널리틱스 '사용' 선택</li>
+<li>프로젝트 화면에서 Android 아이콘 → 패키지 이름(앱 ID) 입력 → <code>google-services.json</code> 다운로드 → 저에게 경로를 알려주시면 연결합니다</li>
+<li>iOS는 Apple 개발자 등록 후 같은 방식으로 <code>GoogleService-Info.plist</code>를 받습니다</li>
+</ol>
+</section>
+
+<section id="play">
+<h2>10. Google Play 테스트 빌드 올리기 (태블릿에서 바로 테스트)</h2>
+<h3>A. 가장 빠른 방법: USB로 직접 설치 (심사 없음, 당일 가능)</h3>
+<ol class="steps">
+<li><b>Android Studio 설치</b>: <code>developer.android.com/studio</code>에서 내려받아 기본 옵션으로 설치하고, 첫 실행 마법사를 끝까지 진행합니다. 빌드 도구(SDK, Java)가 함께 깔리며 약 10GB가 필요합니다.</li>
+<li><b>태블릿 개발자 모드 켜기</b>: 설정 → 태블릿 정보 → 소프트웨어 정보 → '빌드 번호'를 7번 탭 → 설정 → 개발자 옵션 → 'USB 디버깅' 켜기</li>
+<li>USB로 PC에 연결하고 태블릿에 뜨는 '이 컴퓨터 허용'을 누릅니다</li>
+<li>제가 명령 한 줄로 빌드하고 설치합니다</li>
+</ol>
+<h3>B. 정식 경로: Play Console 내부 테스트</h3>
+<ol class="steps">
+<li><b>앱 만들기</b>: Play Console → '앱 만들기' → 앱 이름 / 기본 언어 한국어 / '게임' / '무료' → 선언 체크 → 만들기</li>
+<li><b>업로드 키 만들기</b>: 제가 Android Studio의 서명 키 파일(<code>.jks</code>)을 만드는 과정을 안내합니다.
+<p class="note warn">키 파일과 비밀번호는 <b>반드시 두 곳 이상에 백업</b>해야 합니다(USB, 클라우드 등). 잃어버리면 업데이트를 올리기가 매우 번거로워집니다. Git에는 올리지 않습니다.</p></li>
+<li><b>앱 번들 만들기</b>: 제가 서명된 <code>.aab</code> 파일을 만듭니다. 이 파일이 스토어에 올리는 앱 파일입니다.</li>
+<li><b>업로드</b>: Play Console → 테스트 및 출시 → 테스트 → <b>내부 테스트</b> → '새 버전 만들기' → Play 앱 서명 '계속'(구글이 최종 서명 키를 안전하게 보관) → <code>.aab</code> 끌어다 놓기 → 버전 이름·출시 노트 입력 → 저장 → 검토 → 출시</li>
+<li><b>테스터 등록</b>: 내부 테스트 → '테스터' 탭 → 이메일 목록 만들기 → 태블릿의 구글 계정 추가 → 저장</li>
+<li><b>설치</b>: 같은 화면의 '참여 링크'를 태블릿에서 열기 → '테스터 되기' → Play 스토어에서 설치. 내부 테스트는 심사 없이 보통 몇 분 안에 열립니다.</li>
+</ol>
+<h3>C. 정식 출시까지 (나중 단계)</h3>
+<ul>
+<li><b>앱 콘텐츠</b> 작성: 개인정보처리방침 URL, 광고 없음, 콘텐츠 등급 설문, 타깃 연령, 데이터 보안(Firebase 수집 항목 신고)</li>
+<li><b>스토어 등록정보</b> 작성: 아이콘 512×512, 그래픽 이미지 1024×500, 휴대폰 스크린샷 2장 이상, 태블릿 스크린샷(태블릿 노출에 유리), 짧은 설명(80자), 자세한 설명</li>
+<li><span class="tag warn">중요</span>2023년 11월 이후 만든 <b>개인 계정</b>은 정식 출시 전에 <b>테스터 12명 이상이 14일 연속 참여하는 비공개 테스트</b>를 통과해야 합니다. 사업자(조직) 계정은 해당되지 않습니다. 계정 유형을 알려주세요.</li>
+<li>Play가 요구하는 최신 targetSdk(매년 상향)를 맞춰 빌드합니다.</li>
+</ul>
+</section>
+
+<section id="ios">
+<h2>11. iOS 처음부터 출시하기 (Mac 없이)</h2>
+<ol class="steps">
+<li><b>Apple ID 2단계 인증 켜기</b>: 아이폰 설정 → 이름 → 로그인 및 보안 → 이중 인증</li>
+<li><b>Apple Developer Program 가입</b>: <code>developer.apple.com/programs/enroll</code> → 아이폰의 'Apple Developer' 앱으로 가입하면 신분 확인이 빠릅니다. 연 99달러(약 13만 원)이며, 개인 또는 조직(D-U-N-S 번호 필요)을 선택합니다. 승인까지 보통 1~2일, 길면 1주일이 걸리니 <b>지금 바로 시작</b>하는 것을 권합니다.</li>
+<li><b>앱 등록</b>: <code>appstoreconnect.apple.com</code> → 나의 앱 → '+' → 신규 앱 → 플랫폼 iOS / 이름 / 기본 언어 한국어 / 번들 ID / SKU(아무 고유 문자열, 예: <code>blockstep-001</code>)</li>
+<li><b>API 키 만들기</b>: App Store Connect → 사용자 및 액세스 → 통합 → App Store Connect API → 키 생성(권한: App Manager) → <code>.p8</code> 파일 다운로드. 이 키로 클라우드 Mac이 인증서 발급과 업로드를 자동으로 처리합니다.</li>
+<li><b>Codemagic 연결</b>: <code>codemagic.io</code>에 GitHub 계정으로 가입 → 저장소 연결 → API 키 등록. 빌드 설정 파일(<code>codemagic.yaml</code>)은 제가 만듭니다. 개인 사용은 매달 무료 빌드 시간이 있어 테스트 단계에서는 보통 무료로 충분합니다.</li>
+<li><b>빌드 시작</b>: Codemagic에서 'Start build'를 누르면 클라우드 Mac이 빌드해 TestFlight에 자동 업로드합니다(20~40분).</li>
+<li><b>TestFlight 설치</b>: 아이폰에 TestFlight 앱 설치 → App Store Connect의 TestFlight 탭에서 내부 테스터로 본인 추가 → 초대 메일로 설치. 내부 테스터(최대 100명)는 심사 없이 바로 설치할 수 있습니다.</li>
+<li><b>심사 제출</b>(정식 출시 때): 스크린샷(6.9인치 아이폰 필수, 아이패드 지원 시 13인치 아이패드), 설명, 개인정보처리방침 URL, 앱 개인정보 설문, 연령 등급, 카테고리(게임 › 캐주얼)를 작성하고, 수출 규정 질문(암호화 사용)에는 '아니요'로 답한 뒤 제출합니다. 심사는 보통 1~2일 걸립니다.</li>
+</ol>
+</section>
+
+<section id="roadmap">
+<h2>12. 진행 순서와 필요한 준비물</h2>
+<h3>진행 순서</h3>
+<ol>
+<li>문서 정리, 아침·밤 소리 제외, 성능 최적화, 관리자 패널 (웹에서 먼저 확인)</li>
+<li>환경음 A/B 비교 페이지, Lottie 픽셀 비교 → 승인 후 적용</li>
+<li>기기 미리보기 페이지</li>
+<li>Capacitor 패키징 → <b>태블릿 USB 설치</b> → Play 내부 테스트</li>
+<li>Firebase Analytics 연결</li>
+<li>iOS (Apple 승인 후) Codemagic → TestFlight</li>
+</ol>
+<h3>직접 준비해 주실 것</h3>
+<ul class="check">
+<li>앱 이름(스토어 표시명)과 앱 ID(예: <code>com.이름.blockstep</code>, 출시 후 변경 불가)</li>
+<li>Play Console 계정 유형 (개인 / 조직)</li>
+<li>Android Studio 설치 + 태블릿 USB 디버깅 켜기</li>
+<li>Firebase 프로젝트 생성 + <code>google-services.json</code></li>
+<li>Apple Developer Program 가입 신청 (승인 대기 시간이 있으니 미리)</li>
+<li>개인정보처리방침 페이지 (초안은 제가 작성해 드릴 수 있음)</li>
+<li>무음 스위치 동작 확인 (4장)</li>
+</ul>
+</section>
+<footer>BlockStep · docs/app-release-plan.html</footer>
+</main>
+</body>
+</html>

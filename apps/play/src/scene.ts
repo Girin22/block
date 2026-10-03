@@ -8,8 +8,14 @@ import { TILE_BLEED, tileImage, tileImages, type TileImage } from './tile-assets
 import { FallingShadow } from './falling-shadow';
 import { LandingGuide } from './landing-guide';
 import { wetTint, type Rain } from './rain';
+import { tuning } from './tuning';
 
 const VIEW_WIDTH = WIDTH + .28;
+/** Seconds the scene keeps drawing every frame after the last visible change, and the slow redraw
+ *  interval once it is still (covers images that finish loading while nothing moves). */
+const SETTLE_MS = 1000, IDLE_REDRAW_MS = 250;
+/** Smaller differences than this between frames are not visible, so they do not count as motion. */
+const STILL = 1e-4;
 const DRY_GROUND = new THREE.Color('#2c2929'), WET_GROUND = new THREE.Color('#202427');
 
 function geometry(rotation: number, white = false) {
@@ -52,6 +58,10 @@ export class PlayScene {
   private animationTime = 0;
   private dropping?: { from: THREE.Vector3; to: THREE.Vector3; elapsed: number; duration: number; done: () => void };
   private observer: ResizeObserver;
+  /** What the last drawn frame showed, to skip redrawing a still picture (battery and heat). */
+  private shown = new Float64Array(18);
+  private lastChange = 0;
+  private lastDraw = -Infinity;
   /** Fires as a white filler seats on screen; the game plays its sound here. */
   onFillSeat?: () => void;
   /** Fires once as a long run of fillers begins, in place of most of their clicks. */
@@ -135,6 +145,10 @@ export class PlayScene {
     return edge.y < 0.5;
   }
   start() { this.started = true; }
+  /** Onboarding: hides the active block and its silhouette (intro and hole tip). */
+  conceal = false;
+  /** Onboarding: the active block waits in place instead of sinking on its own. */
+  holdFall = false;
   beginDrag() { this.start(); this.controlledY = this.activeY; this.held = true; this.contactTime = 0; }
   endDrag() { this.held = false; this.contactTime = 0; }
   lower(distance: number) {
@@ -158,6 +172,11 @@ export class PlayScene {
     return true;
   }
   get column() { return this.x; }
+  /** Where the active block's centre is on screen, in CSS pixels from the canvas's top left (onboarding hints). */
+  get activeScreen() {
+    const point = this.active.position.clone().project(this.camera);
+    return { x: (point.x + 1) / 2 * this.canvas.clientWidth, y: (1 - point.y) / 2 * this.canvas.clientHeight, cell: this.cellPixels };
+  }
   spawn() {
     this.held = false; this.contactTime = 0;
     this.controlledY = undefined; this.x = SPAWN_X; this.rotation = SPAWN_ROTATION; this.spin = SPAWN_ROTATION * Math.PI / 2;
@@ -174,7 +193,9 @@ export class PlayScene {
     this.ghost.visible = false;
   }
   /** Pass animate = false for tiles that were already part of the board (restored fixtures). */
-  add(tiles: Tile[], animate = true) {
+  /** `pace` slows and delays one placement's fillers (the first-hole tip lays them in slowly). */
+  add(tiles: Tile[], animate = true, pace: { delay?: number; speed?: number } = {}) {
+    const speed = tuning.fillSpeed * (pace.speed ?? 1), delay = pace.delay ?? 0;
     // Fillers of one placement are laid in order, a beat apart. Only those that will seat inside the
     // view the camera is heading for make a sound, and a long run opens with a drag instead of a rattle.
     const whites = tiles.filter(tile => tile.white), target = this.targetCenter;
@@ -192,7 +213,7 @@ export class PlayScene {
       this.scene.add(mesh); this.settled.set(tile.id, mesh);
       if (!tile.white || !animate) continue;
       // Lowered from just above: its own fading material and shadow exist only until it seats.
-      mesh.userData.born = this.animationTime + order * FILL_STAGGER; mesh.userData.sound = plan.seats.has(order); mesh.userData.drag = plan.drag === order;
+      mesh.userData.born = this.animationTime + delay + order * FILL_STAGGER / speed; mesh.userData.speed = speed; mesh.userData.sound = plan.seats.has(order); mesh.userData.drag = plan.drag === order;
       mesh.userData.spin = mesh.rotation.z; order++;
       const material = this.material(image).clone(); material.opacity = 0; mesh.material = material;
       const shadow = this.fallingShadow.spawn(image); shadow.renderOrder = tile.id - .5;
@@ -211,7 +232,7 @@ export class PlayScene {
     this.paused = value;
     // A paused summary shows completed joins, never a half-grown white filler.
     // Its sounds are dropped with it, so nothing plays late when play resumes.
-    if (value) for (const mesh of this.settled.values()) { mesh.userData.born = Math.min(mesh.userData.born, this.animationTime - .5); mesh.userData.drag = false; }
+    if (value) for (const mesh of this.settled.values()) { mesh.userData.born = Math.min(mesh.userData.born, this.animationTime - .5 / tuning.fillSpeed); mesh.userData.drag = false; }
   }
   dispose() {
     cancelAnimationFrame(this.raf); this.observer.disconnect();
@@ -242,12 +263,12 @@ export class PlayScene {
       for (const material of this.materials.values()) material.color.setRGB(r, g, b, THREE.SRGBColorSpace);
       (this.scene.background as THREE.Color).lerpColors(DRY_GROUND, WET_GROUND, this.rain.wetness);
     }
-    this.active.visible = !this.board.atLimit && !this.paused;
-    if (this.paused) this.ghost.visible = false;
+    this.active.visible = !this.board.atLimit && !this.paused && !this.conceal;
+    if (this.paused || this.conceal) this.ghost.visible = false;
     this.ghost.renderOrder = this.board.tiles.length + 1; this.fallingShadow.mesh.renderOrder = this.board.tiles.length + 2; this.active.renderOrder = this.board.tiles.length + 3;
-    if (!this.board.atLimit && this.started && !this.held && !this.dropping && dt > 0) {
+    if (!this.board.atLimit && this.started && !this.holdFall && !this.held && !this.dropping && dt > 0) {
       const bottom = this.board.landingFrom(this.x, this.activeY, this.rotation).y;
-      this.controlledY = Math.max(bottom, this.activeY - dt * 1.1);
+      this.controlledY = Math.max(bottom, this.activeY - dt * tuning.fallSpeed);
       this.contactTime = this.controlledY <= bottom + 0.00001 ? this.contactTime + dt : 0;
       if (this.contactTime >= 0.45) { this.contactTime = 0; this.onAutoLand(); }
     }
@@ -263,19 +284,21 @@ export class PlayScene {
       this.active.position.x += (targetX - this.active.position.x) * (1 - Math.exp(-dt * 26));
       this.active.position.y = this.activeY + size(this.rotation).h / 2;
       this.active.position.z = 0.12;
-      this.ghost.visible = !this.board.atLimit && !this.paused && this.guide.ready;
+      this.ghost.visible = !this.board.atLimit && !this.paused && !this.conceal && this.guide.ready;
     }
     // A rigid paver lowered into its socket: slightly nearer the camera in the air, exact size on contact.
     const lift = liftScale(this.active.position.y - size(this.rotation).h / 2 - p.y);
     this.active.scale.set(lift, lift, 1);
     this.active.rotation.z += (this.spin - this.active.rotation.z) * (1 - Math.exp(-dt * 28));
     this.fallingShadow.update(this.active, this.rotation, this.spin, this.board.landingFrom(this.x, this.activeY, this.rotation).y);
+    let filling = false;
     for (const [id, mesh] of this.settled) {
       if (mesh.position.y < this.center - this.halfHeight - 3) { this.seat(mesh); this.scene.remove(mesh); this.settled.delete(id); continue; }
       const shadow = mesh.userData.shadow as THREE.Mesh | undefined;
       if (!shadow) continue;
       // The white filler is lowered straight onto its slot: accelerating, rigid, flush on contact.
-      const age = this.animationTime - mesh.userData.born;
+      filling = true;
+      const age = (this.animationTime - mesh.userData.born) * (mesh.userData.speed ?? tuning.fillSpeed);
       if (mesh.userData.drag && age >= FILL_DELAY && dt > 0) { mesh.userData.drag = false; this.onFillDrag?.(); }
       if (age >= FILL_LANDS) { this.seat(mesh); if (mesh.userData.sound && dt > 0) this.onFillSeat?.(); continue; }
       const altitude = fillAltitude(age), opacity = fillOpacity(age), lift = 1 + FILL_LIFT * altitude;
@@ -286,6 +309,25 @@ export class PlayScene {
       // The shadow, not the travel, carries the height: 1.2 cells is its full separation.
       this.fallingShadow.updateSpawned(shadow, mesh, 1.2 * altitude, opacity, tilt);
     }
-    this.renderer.render(this.scene, this.camera); this.raf = requestAnimationFrame(this.frame);
+    if (this.changed(now, filling)) { this.renderer.render(this.scene, this.camera); this.lastDraw = now; }
+    this.raf = requestAnimationFrame(this.frame);
   };
+  /**
+   * Whether this frame must be drawn. A still board (paused, waiting for the first touch, or resting
+   * between moves) is drawn for a moment after it stops, then only a few times a second, which is what
+   * keeps a long session cool. Anything that moves draws every frame at the display's full rate.
+   */
+  private changed(now: number, filling: boolean) {
+    const a = this.active, g = this.ghost, values = [
+      this.center, a.position.x, a.position.y, a.rotation.z, a.scale.x, +a.visible,
+      g.position.x, g.position.y, g.rotation.z, +g.visible, this.settled.size, this.board.tiles.length,
+      this.rain?.wetness ?? 0, this.canvas.width, this.canvas.height, this.frameTiles.size, +this.paused, +this.guide.ready,
+    ];
+    let moved = filling;
+    for (let i = 0; i < values.length; i++) {
+      if (Math.abs(values[i] - this.shown[i]) > STILL) { moved = true; this.shown[i] = values[i]; }
+    }
+    if (moved) this.lastChange = now;
+    return moved || now - this.lastChange < SETTLE_MS || now - this.lastDraw >= IDLE_REDRAW_MS;
+  }
 }

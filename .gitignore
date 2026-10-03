@@ -26,3 +26,11 @@ output/
 *.log
 .DS_Store
 Thumbs.db
+
+# App signing keys and their passwords: back them up privately, never commit them.
+*.jks
+*.keystore
+key.properties
+# Firebase config for the apps (kept out of the public repo).
+google-services.json
+GoogleService-Info.plist

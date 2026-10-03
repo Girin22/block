@@ -20,22 +20,19 @@ import hit12URL from '../../../assets/sfx/place/place-12.wav?url';
 import hit14URL from '../../../assets/sfx/place/place-14.wav?url';
 import hit16URL from '../../../assets/sfx/place/place-16.wav?url';
 import fillDragURL from '../../../assets/sfx/place/ES_Rocks, Movement, Stone, Drag, Stone Surface, Small, Short Movements - Epidemic Sound - 7121-9251.wav?url';
-import rainSoundURL from '../../../assets/audio/날씨_비/rain-window.mp3?url';
+import rainSoundURL from '../../../assets/audio/날씨_비/rain-window.m4a?url';
 import { Soundscape, type Environment } from './ambience';
-import hanokAlleyURL from '../../../assets/audio/거리/L03256-004.mp3?url';
-import seonbiAlleyURL from '../../../assets/audio/거리/L03258-004.mp3?url';
-import pohangMarketURL from '../../../assets/audio/거리/L03314-004.mp3?url';
-import ulsanStreetURL from '../../../assets/audio/거리/L03320-004.mp3?url';
-import buntingURL from '../../../assets/audio/아침 새/L01336-002+B+KR_KSL2022_A0184+동물_조류_가을 숲속, 봄가을 철새인 촉새가 촉촉거리며 우는 소리_48khz320kbp_Mono.mp3?url';
-import sparrowURL from '../../../assets/audio/아침 새/L01371-002+B+KR_KSL2022_A0219+새_참새_철원 동송읍_오덕리 학저수지 주차장 옆 쉼터 초가지붕에서 짹짹거리는 소리_48khz320kbps_Mono-01.mp3?url';
-import warblerURL from '../../../assets/audio/아침 새/L01534-002+B+KR_KSL2022_A0382+동물_조류_무당개구리 울음소리 배경, 솔새 지저귀는 소리_48khz320kbps_Mono.mp3?url';
-import cricketURL from '../../../assets/audio/밤 개구리/L01330-002+B+KR_KSL2022_A0178+동물_곤충_강 마을의 극동귀뚜라미 울음소리_48khz320kbp_Mono.mp3?url';
-import woodFrogURL from '../../../assets/audio/밤 개구리/L01554-002+B+KR_KSL2022_A0402+동물_양서류_계곡 숲의 북방산개구리 울음소리, 새소리와 함께_48khz320kbps_Mono.mp3?url';
-import frogsURL from '../../../assets/audio/밤 개구리/개구리C.wav?url';
+import hanokAlleyURL from '../../../assets/audio/거리/L03256-004.m4a?url';
+import seonbiAlleyURL from '../../../assets/audio/거리/L03258-004.m4a?url';
+import pohangMarketURL from '../../../assets/audio/거리/L03314-004.m4a?url';
+import ulsanStreetURL from '../../../assets/audio/거리/L03320-004.m4a?url';
 import { environmentIcons, type PickedEnvironment } from './environment-icons';
+import { onTuning } from './tuning';
+import { installNative, isNativeApp, saveExport } from './native';
+import { Onboarding } from './onboarding';
 
 // Planner preview: the pause screen can switch the ambient environment. Not decided for release yet.
-// Morning and night are switched off for now (2026-10-01); their recordings stay wired in below.
+// Morning and night are out of the app (2026-10-01); only off, street and rain remain.
 const ENVIRONMENTS: { id: PickedEnvironment; label: string }[] = [
   { id: 'off', label: '환경음 끄기' }, { id: 'day', label: '거리' }, { id: 'rain', label: '비' },
 ];
@@ -53,7 +50,7 @@ document.querySelector('#app')!.innerHTML = `<main class="play">
       <img class="stat-icon small" src="${tileImages.center}" alt="자동 채움 흰 블록"/>
       <span class="stat-text" id="white-count" aria-label="자동 채움 흰 블록 수">0</span>
       <button id="export">내보내기</button>
-      <button id="restart">다시 쌓기</button>
+      <button id="restart">새로 쌓기</button>
     </div>
   </section>
   <button id="pause" aria-label="일시정지" aria-pressed="false" aria-controls="pause-actions"><canvas id="pause-animation" width="40" height="40" aria-hidden="true"></canvas></button>
@@ -64,6 +61,8 @@ const menu = document.querySelector<HTMLDialogElement>('#pause-menu')!;
 const pauseButton = document.querySelector<HTMLButtonElement>('#pause')!;
 const play = document.querySelector<HTMLElement>('.play')!;
 const pauseActions = document.querySelector<HTMLElement>('#pause-actions')!;
+// The pause screen's single row gap, scaled by the planner's tuning (1 = the designed gap).
+onTuning(({ pauseGap }) => pauseActions.querySelector<HTMLElement>('.pause-content')!.style.setProperty('--gap-scale', String(pauseGap)));
 const pauseIcon = new PauseIcon(pauseButton, document.querySelector<HTMLCanvasElement>('#pause-animation')!);
 const playTimer = new PlayTimer();
 let paused = false;
@@ -91,12 +90,15 @@ void Promise.all([document.fonts?.load('16px GangBuJang'), document.fonts?.load(
 let photo: File | undefined, photoURL: string | undefined;
 let photoGeneration = 0, savingPhoto = false, manualPhoto = false;
 let generationAbort: AbortController | undefined, disposePreview: (() => void) | undefined;
-// Admin mode (?admin) adds tools outside the game screen. Nothing here affects rules or the export.
-const admin = new URLSearchParams(location.search).has('admin');
+// Admin mode (?admin on the web, or an internal test build of the app) adds tools outside the game
+// screen. Nothing here affects rules or the export; the tuning sheet only changes feel, on this device.
+const admin = new URLSearchParams(location.search).has('admin') || import.meta.env.VITE_ADMIN === '1';
 const weather = document.createElement('canvas'); weather.id = 'weather'; weather.setAttribute('aria-hidden', 'true');
 // The rain recording is only requested once the rain environment is first chosen.
 const rainAmbience = new RainAmbience(rainSoundURL);
 canvas.after(weather); const rain = new Rain(weather, rainAmbience);
+// The planner's saved values and onboarding copy load with the admin panel, before the intro starts.
+let adminReady: Promise<unknown> = Promise.resolve();
 if (admin) {
   const panel = document.createElement('aside'); panel.id = 'admin'; panel.setAttribute('aria-label', '관리자 도구');
   panel.innerHTML = '<span>관리자</span><p class="device" id="device-motion"></p><p class="device" id="device-audio"></p>';
@@ -105,6 +107,7 @@ if (admin) {
   const showMotion = () => { panel.querySelector('#device-motion')!.innerHTML = reduceMotion.matches ? '동작 줄이기 <b>켜짐</b> (앱 동작에는 영향 없음)' : '동작 줄이기 꺼짐'; };
   showMotion(); reduceMotion.addEventListener('change', showMotion);
   document.body.append(panel);
+  adminReady = import('./tuning-panel').then(({ mountTuningPanel }) => mountTuningPanel(panel)).catch(() => {});
   // Silent mode on an iPhone mutes this page's sound without any error, so "재생 중" with no sound
   // points at the device, while "막힘" points at the browser refusing to start audio.
   const audio = panel.querySelector('#device-audio')!;
@@ -112,12 +115,10 @@ if (admin) {
 }
 let board = new Pavement(), started = new Date();
 const sound = new PlaySound({ pause: pausePopURL, resume: resumePopURL }, [hit01URL, hit05URL, hit06URL, hit12URL, hit14URL, hit16URL], fillDragURL);
-// Loudness of each recording (integrated LUFS) so every environment plays at the same level. The frog
-// chorus never pauses, so at the same measured level it feels louder; it sits 3 dB lower.
+// Loudness of each recording (integrated LUFS) so every environment plays at the same level. Morning and
+// night were dropped from the app on 2026-10-01; their recordings stay in assets/audio, out of the build.
 const soundscape = new Soundscape({
   day: { repeat: false, tracks: [{ url: hanokAlleyURL, lufs: -25.6 }, { url: seonbiAlleyURL, lufs: -25.7 }, { url: pohangMarketURL, lufs: -25.9 }, { url: ulsanStreetURL, lufs: -26.4 }] },
-  morning: { repeat: true, tracks: [{ url: buntingURL, lufs: -36.2 }, { url: sparrowURL, lufs: -35.2 }, { url: warblerURL, lufs: -27.8 }] },
-  night: { repeat: true, tracks: [{ url: cricketURL, lufs: -29.5 }, { url: woodFrogURL, lufs: -47.9 }, { url: frogsURL, lufs: -28.2, trim: -3 }] },
 });
 /**
  * Ambience keeps playing on the pause screen (the picker's X turns it off); it only holds while the page
@@ -169,9 +170,17 @@ if (import.meta.env.DEV) {
   }
 }
 createScene();
-const blocked = () => paused || menu.open || !view || view.busy || document.hidden;
+// First-run guide over the board; it reads the scene through `view`, which "새로 쌓기" replaces.
+const onboarding = new Onboarding(play, () => view, () => {
+  pauseButton.disabled = board.atLimit || onboarding.introShowing; play.classList.toggle('onboarding-intro', onboarding.introShowing);
+});
+const blocked = () => paused || menu.open || !view || view.busy || document.hidden || onboarding.blocking;
 function aim(column: number, nextRotation = rotation) {
-  if (view.aim(column, nextRotation)) { rotation = nextRotation; x = view.column; }
+  const before = { x, rotation };
+  if (!view.aim(column, nextRotation)) return;
+  rotation = nextRotation; x = view.column;
+  if (rotation !== before.rotation) onboarding.acted('rotate');
+  else if (x !== before.x) onboarding.acted('move');
 }
 function drop() {
   if (blocked()) return;
@@ -179,7 +188,7 @@ function drop() {
   const column = x, orientation = rotation;
   const landing = board.landingFrom(column, view.activeY, orientation);
   view.drop(() => {
-    const added = board.place(column, landing.y, orientation); view.add(added); sound.place();
+    const added = board.place(column, landing.y, orientation); view.add(added, true, onboarding.placed(added)); sound.place();
     // A fresh piece always enters at the current camera's upper center.
     x = SPAWN_X; rotation = SPAWN_ROTATION; view.spawn();
     if (board.atLimit) pause();
@@ -235,12 +244,12 @@ function updatePauseUI() {
   canvas.inert = paused;
   pauseButton.setAttribute('aria-pressed', String(paused));
   pauseButton.setAttribute('aria-label', paused ? '재개' : '일시정지');
-  pauseButton.disabled = board.atLimit;
+  pauseButton.disabled = board.atLimit || onboarding.introShowing;
   limitNote.hidden = !board.atLimit;
   pauseIcon.setPaused(paused);
 }
 function pause() {
-  cancelGesture(); playTimer.pause(); view?.pause(true); sound.pause();
+  onboarding.interrupt(); cancelGesture(); playTimer.pause(); view?.pause(true); sound.pause();
   if (paused) return;
   paused = true;
   document.querySelector('#path-length')!.textContent = formatMeters(board.filled);
@@ -286,7 +295,7 @@ function resetSession() {
   gesture = undefined; view?.dispose(); sound.reset(); rain.clearMarks(); soundscape.newSession();
   board = new Pavement(); started = new Date(); x = SPAWN_X; rotation = SPAWN_ROTATION; playTimer.reset();
   limitNote.hidden = true; pauseButton.disabled = false;
-  createScene(); view?.pause(paused);
+  createScene(); onboarding.apply(); view?.pause(paused);
 }
 pauseButton.addEventListener('click', () => { sound.button(paused ? 'resume' : 'pause'); if (paused) resume(); else pause(); });
 restartButton.addEventListener('click', () => {
@@ -309,7 +318,12 @@ exportButton.addEventListener('click', async () => {
       file = await receiptPhoto(receipt, undefined, value => { exportButton.textContent = `저장 중 ${Math.round(value * 100)}%`; })
         .catch(() => receipt.svgFile());
     } else file = await receipt.svgFile();
-    downloadFile(file);
+    // In the app there is no download folder: a PNG goes to the photo library, an SVG to the share sheet.
+    if (isNativeApp) {
+      const saved = await saveExport(file);
+      // A saved photo needs no message (2026-10-03); only the rare SVG says where it went.
+      exportStatus.textContent = saved === 'shared' ? '파일로 내보냈어요. 사진이 아닌 파일 앱에서 확인해 주세요.' : '';
+    } else downloadFile(file);
   } catch {
     exportStatus.textContent = '저장하지 못했어요. 다시 시도해 주세요.';
   } finally { exporting = false; exportButton.disabled = false; exportButton.textContent = '내보내기'; }
@@ -404,3 +418,16 @@ window.addEventListener('pageshow', event => {
   resetSession(); if (menu.open) menu.close('saved'); else resume();
 });
 if (board.atLimit) pause();
+void adminReady.then(() => onboarding.begin());
+pauseButton.disabled = board.atLimit || onboarding.introShowing; play.classList.toggle('onboarding-intro', onboarding.introShowing);
+// App shell only: Android's back button opens the pause screen (and from there leaves the app), and
+// leaving the app holds play and sound the same way leaving the page does.
+void installNative({
+  back: () => {
+    if (menu.open) { if (!savingPhoto) menu.close('cancelled'); return true; }
+    if (paused || board.atLimit) return false;
+    sound.button('pause'); pause(); return true;
+  },
+  hidden: () => { pause(); holdAmbience(); },
+  shown: () => { if (!menu.open) playAmbience(); },
+});

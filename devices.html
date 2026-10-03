@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>기기 미리보기</title>
+<!-- Development only: `npm run dev` serves it at /devices.html. The production build has a single
+     entry (index.html), so this page never ships. It shows layout per screen size; performance, sound
+     policy and real safe areas still need an emulator or a device. -->
+<style>
+:root{--bg:#f3f2ee;--panel:#fff;--ink:#22231f;--sub:#696b63;--line:#dcdad2;--accent:#3c7a5c;--frame:#111}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#141513;--panel:#1e201c;--ink:#e9e8e2;--sub:#a1a49a;--line:#34372f;--accent:#7cc39d;--frame:#000}}
+:root[data-theme="dark"]{--bg:#141513;--panel:#1e201c;--ink:#e9e8e2;--sub:#a1a49a;--line:#34372f;--accent:#7cc39d;--frame:#000}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 -apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",sans-serif}
+header{position:sticky;top:0;z-index:5;background:var(--panel);border-bottom:1px solid var(--line);padding:12px 16px;display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center}
+h1{font-size:16px;margin:0 8px 0 0}
+fieldset{border:0;margin:0;padding:0;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+legend{float:left;margin-right:6px;color:var(--sub)}
+button,label.chip{font:inherit;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:999px;padding:6px 12px;cursor:pointer;min-height:36px;display:inline-flex;align-items:center;gap:6px}
+button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--panel)}
+label.chip input{margin:0}
+.note{flex-basis:100%;margin:0;color:var(--sub);font-size:12px}
+main{display:flex;flex-wrap:wrap;gap:28px 24px;padding:24px 16px 60px;align-items:flex-end}
+figure{margin:0;display:flex;flex-direction:column;align-items:center;gap:8px}
+figcaption{text-align:center;font-size:13px}
+figcaption small{display:block;color:var(--sub)}
+.device{position:relative;background:var(--frame);border-radius:calc(var(--radius) * var(--scale) + 6px);padding:6px;box-shadow:0 8px 24px #0003}
+.screen{position:relative;overflow:hidden;border-radius:calc(var(--radius) * var(--scale));width:calc(var(--w) * var(--scale) * 1px);height:calc(var(--h) * var(--scale) * 1px)}
+.screen iframe{position:absolute;left:0;top:0;border:0;width:calc(var(--w) * 1px);height:calc(var(--h) * 1px);transform:scale(var(--scale));transform-origin:0 0;background:#211f1f}
+.overlay{position:absolute;pointer-events:none;background:#000c;z-index:2}
+.island{border-radius:999px}
+.home{background:#fffc;border-radius:999px;height:5px}
+.status{left:0;right:0;top:0;background:#0006}
+.locked{position:absolute;inset:0;z-index:3;display:grid;place-items:center;text-align:center;padding:12px;color:#fff;background:#000b;font-size:12px}
+</style>
+</head>
+<body>
+<header>
+  <h1>기기 미리보기</h1>
+  <fieldset><legend>방향</legend><button id="portrait" aria-pressed="true">세로</button><button id="landscape" aria-pressed="false">가로</button></fieldset>
+  <fieldset><legend>크기</legend><button data-zoom="fit" aria-pressed="true">맞춤</button><button data-zoom="0.5" aria-pressed="false">50%</button><button data-zoom="1" aria-pressed="false">실제</button></fieldset>
+  <fieldset><legend>표시</legend><label class="chip"><input type="checkbox" id="overlays" checked>노치·홈 바</label><label class="chip"><input type="checkbox" id="admin">관리자 패널</label><label class="chip"><input type="checkbox" id="lock" checked>앱 세로 고정</label></fieldset>
+  <button id="reload">모두 새로고침</button>
+  <p class="note">CSS 화면 크기 기준 근사치입니다. 노치·홈 바는 위치만 표시하며 실제 안전 영역 값은 에뮬레이터나 실기기에서 확인하세요. 소리는 각 화면을 한 번 눌러야 시작합니다.</p>
+</header>
+<main id="devices"></main>
+<script type="module">
+// CSS viewport sizes (portrait) with the system UI that overlaps them. Values are approximate.
+const DEVICES = [
+  { name: '갤럭시 S24', w: 360, h: 780, radius: 28, top: { kind: 'status', size: 28 }, bottom: 14, group: 'galaxy' },
+  { name: '갤럭시 S24 Ultra', w: 384, h: 824, radius: 18, top: { kind: 'status', size: 30 }, bottom: 14, group: 'galaxy' },
+  { name: '갤럭시 Z 플립6', w: 360, h: 880, radius: 26, top: { kind: 'status', size: 28 }, bottom: 14, group: 'foldable' },
+  { name: '갤럭시 Z 폴드6 접힘', w: 344, h: 882, radius: 22, top: { kind: 'status', size: 28 }, bottom: 14, group: 'foldable' },
+  { name: '갤럭시 Z 폴드6 펼침', w: 882, h: 1104, radius: 18, top: { kind: 'status', size: 28 }, bottom: 14, group: 'foldable' },
+  { name: '갤럭시 탭 S9', w: 800, h: 1280, radius: 18, top: { kind: 'status', size: 26 }, bottom: 14, group: 'tablet' },
+  { name: '아이폰 SE', w: 375, h: 667, radius: 0, top: { kind: 'status', size: 20 }, bottom: 0, group: 'iphone' },
+  { name: '아이폰 16', w: 393, h: 852, radius: 48, top: { kind: 'island', size: 59 }, bottom: 34, group: 'iphone' },
+  { name: '아이폰 16 Pro Max', w: 440, h: 956, radius: 52, top: { kind: 'island', size: 62 }, bottom: 34, group: 'iphone' },
+  { name: '아이패드 10세대', w: 820, h: 1180, radius: 18, top: { kind: 'status', size: 24 }, bottom: 20, group: 'tablet' },
+  { name: '아이패드 Pro 13', w: 1032, h: 1376, radius: 18, top: { kind: 'status', size: 24 }, bottom: 20, group: 'tablet' },
+];
+const state = { landscape: false, zoom: 'fit', overlays: true, admin: false, lock: true };
+const root = document.querySelector('#devices');
+
+function src() { return `/${state.admin ? '?admin' : ''}`; }
+function render() {
+  root.replaceChildren(...DEVICES.map(device => {
+    const turned = state.landscape;
+    const w = turned ? device.h : device.w, h = turned ? device.w : device.h;
+    // "Fit" brings every screen to about the height of a phone at half size, so all compare side by side.
+    const scale = state.zoom === 'fit' ? Math.min(0.62, 520 / h, 560 / w) : Number(state.zoom);
+    const figure = document.createElement('figure');
+    const box = document.createElement('div'); box.className = 'device';
+    box.style.setProperty('--radius', device.radius); box.style.setProperty('--scale', scale);
+    const screen = document.createElement('div'); screen.className = 'screen';
+    screen.style.setProperty('--w', w); screen.style.setProperty('--h', h);
+    const frame = document.createElement('iframe'); frame.src = src(); frame.title = device.name; frame.loading = 'lazy';
+    frame.allow = 'autoplay; clipboard-write';
+    screen.append(frame);
+    if (state.overlays) screen.append(...overlays(device, turned, scale));
+    if (turned && state.lock) {
+      const locked = document.createElement('div'); locked.className = 'locked';
+      locked.innerHTML = '앱은 세로 고정이라<br>기기를 가로로 들어도<br>세로 화면 그대로입니다.<br><br>(\'앱 세로 고정\'을 끄면<br>웹 버전의 가로 화면)';
+      screen.append(locked);
+    }
+    box.append(screen);
+    const caption = document.createElement('figcaption');
+    caption.innerHTML = `${device.name}<small>${w}×${h} · ${turned ? '가로' : '세로'} · ${Math.round(scale * 100)}%</small>`;
+    figure.append(box, caption); return figure;
+  }));
+}
+function overlays(device, turned, scale) {
+  const list = [], px = v => `${v * scale}px`;
+  if (!turned) {
+    if (device.top.kind === 'island') {
+      const island = document.createElement('div'); island.className = 'overlay island';
+      Object.assign(island.style, { width: px(124), height: px(36), top: px(11), left: `calc(50% - ${px(62)})` }); list.push(island);
+    } else {
+      const bar = document.createElement('div'); bar.className = 'overlay status'; bar.style.height = px(device.top.size); list.push(bar);
+    }
+    if (device.bottom) {
+      const home = document.createElement('div'); home.className = 'overlay home';
+      Object.assign(home.style, { width: px(Math.min(140, device.w * 0.36)), bottom: px(8), left: `calc(50% - ${px(Math.min(140, device.w * 0.36) / 2)})` }); list.push(home);
+    }
+  } else if (device.top.kind === 'island') {
+    const island = document.createElement('div'); island.className = 'overlay island';
+    Object.assign(island.style, { width: px(36), height: px(124), left: px(11), top: `calc(50% - ${px(62)})` }); list.push(island);
+  }
+  return list;
+}
+const press = (selector, active) => document.querySelectorAll(selector).forEach(b => b.setAttribute('aria-pressed', String(b === active)));
+document.querySelector('#portrait').onclick = e => { state.landscape = false; press('#portrait,#landscape', e.currentTarget); render(); };
+document.querySelector('#landscape').onclick = e => { state.landscape = true; press('#portrait,#landscape', e.currentTarget); render(); };
+document.querySelectorAll('[data-zoom]').forEach(b => b.onclick = () => { state.zoom = b.dataset.zoom; press('[data-zoom]', b); render(); });
+document.querySelector('#overlays').onchange = e => { state.overlays = e.target.checked; render(); };
+document.querySelector('#admin').onchange = e => { state.admin = e.target.checked; render(); };
+document.querySelector('#lock').onchange = e => { state.lock = e.target.checked; render(); };
+document.querySelector('#reload').onclick = render;
+render();
+</script>
+</body>
+</html>
