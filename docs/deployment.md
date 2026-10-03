@@ -50,3 +50,7 @@ V2 효과음은 `apps/play/src/audio.ts`에 독립적으로 있다. V1의 두 �
 - 빌드 JDK: Android Studio 내장 JDK(25)는 Gradle 8.14가 지원하지 않는다. `android/gradle/gradle-daemon-jvm.properties`가 JDK 21을 요구하며, 이 PC에는 `~/.jdks/jdk-21*`(Temurin)을 두었다. 명령줄 빌드: `cd android && ./gradlew assembleDebug`.
 - 아이콘·시작 화면: `python scripts/make-app-icon.py` 후 `npx @capacitor/assets generate --assetPath assets/app-icon --android --ios --iconBackgroundColor '#2d2a2a' --iconBackgroundColorDark '#2d2a2a' --splashBackgroundColor '#2c2929' --splashBackgroundColorDark '#2c2929'`.
 
+- 업로드 서명 키: `C:/Users/Kirin/.bodobodo-signing/`(키 파일, 비밀번호, 안내문). `android/key.properties`에 같은 내용을 복사해 쓰며 Git에서 제외된다. 폴더 전체를 따로 백업한다. 키가 없으면 출시 빌드는 서명 없이 만들어진다.
+- 출시 빌드: `npm run app:sync` 후 `cd android && ./gradlew bundleRelease assembleRelease`. Play 업로드용 `.aab`, 직접 설치용 `.apk`가 나온다. 올릴 때마다 `android/app/build.gradle`의 `versionCode`를 1씩 올린다(첫 업로드는 versionCode 1, versionName 0.1.0). 결과물 사본은 `output/release/`(Git 제외)에 둔다.
+- Play 앱 서명을 쓰면 Play에서 받은 앱은 Google 키로 다시 서명된다. 그래서 직접 설치한 APK와 서명이 다르며, 바꿔 설치하려면 기존 앱을 지워야 한다.
+- 기획자 시연용(관리자 포함) APK: `VITE_ADMIN=1 npm run build && npx cap sync android` 후 `./gradlew assembleRelease`. 왼쪽 아래 ‘조절’ 버튼으로 조절창이 열린다. 만든 뒤에는 `npm run app:sync`로 플레이어용 웹 빌드를 다시 넣어 둔다. Play에는 플레이어용(관리자 없음)만 올린다.
