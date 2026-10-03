@@ -54,3 +54,4 @@ V2 효과음은 `apps/play/src/audio.ts`에 독립적으로 있다. V1의 두 �
 - 출시 빌드: `npm run app:sync` 후 `cd android && ./gradlew bundleRelease assembleRelease`. Play 업로드용 `.aab`, 직접 설치용 `.apk`가 나온다. 올릴 때마다 `android/app/build.gradle`의 `versionCode`를 1씩 올린다(첫 업로드는 versionCode 1, versionName 0.1.0). 결과물 사본은 `output/release/`(Git 제외)에 둔다.
 - Play 앱 서명을 쓰면 Play에서 받은 앱은 Google 키로 다시 서명된다. 그래서 직접 설치한 APK와 서명이 다르며, 바꿔 설치하려면 기존 앱을 지워야 한다.
 - 기획자 시연용(관리자 포함) APK: `VITE_ADMIN=1 npm run build && npx cap sync android` 후 `./gradlew assembleRelease`. 왼쪽 아래 ‘조절’ 버튼으로 조절창이 열린다. 만든 뒤에는 `npm run app:sync`로 플레이어용 웹 빌드를 다시 넣어 둔다. Play에는 플레이어용(관리자 없음)만 올린다.
+- 전체 화면: `MainActivity`가 상태 표시줄, 내비게이션 바, 태블릿 작업 표시줄(삼성 자주 쓰는 앱 줄)을 모두 숨긴다(가장자리를 쓸면 잠깐 나타나는 몰입 모드). 앱이 처음 전체 화면이 될 때 안드로이드가 ‘전체 화면 보기 중’ 안내를 한 번 띄우는 것은 정상이다. `@capacitor/status-bar`는 쓰지 않아 제거했다.

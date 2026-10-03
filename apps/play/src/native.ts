@@ -18,9 +18,9 @@ export interface NativeHooks {
 /** Wires the shell's lifecycle and system UI. Plugins load only inside the app. */
 export async function installNative(hooks: NativeHooks) {
   if (!isNativeApp) return;
-  const [{ App }, { StatusBar }] = await Promise.all([import('@capacitor/app'), import('@capacitor/status-bar')]);
-  // Full-screen play: no clock or battery row over the board (iOS hides it from Info.plist already).
-  if (Capacitor.getPlatform() === 'android') void StatusBar.hide().catch(() => {});
+  const { App } = await import('@capacitor/app');
+  // Full-screen (status bar, navigation bar, tablet taskbar) is handled natively: MainActivity on
+  // Android, Info.plist on iOS.
   void App.addListener('backButton', () => { if (!hooks.back()) void App.minimizeApp(); });
   // WebViews do not always report page visibility when the whole app is backgrounded, so the shell's
   // own state is the source of truth here.
