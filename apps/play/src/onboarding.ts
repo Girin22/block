@@ -185,7 +185,6 @@ export class Onboarding {
   private holeRunning = false;
   private hint: HTMLElement;
   private hintStep?: 'rotate' | 'move' | 'place';
-  private hintFrame = 0;
   private hintTimer = 0;
   /** Tutorial pacing: input waits while one line goes and the next is written, plus a short beat. */
   private settling = false;
@@ -201,9 +200,9 @@ export class Onboarding {
     this.text = document.createElement('p'); this.text.className = 'onboarding-text';
     this.start = document.createElement('button'); this.start.id = 'onboarding-start'; this.start.type = 'button'; this.start.textContent = '시작하기';
     this.root.append(this.text, this.start); parent.append(this.root);
-    // The fingertip hint: a soft dot over the active block that shows the step's gesture (see style.css).
+    // The gesture hint at the bottom centre: a soft fingertip on a faint track (see style.css).
     this.hint = document.createElement('div'); this.hint.id = 'onboarding-hint'; this.hint.setAttribute('aria-hidden', 'true');
-    this.hint.innerHTML = '<span class="chevron left"></span><span class="chevron right"></span><span class="chevron down"></span><span class="ring"></span><span class="ring late"></span><span class="finger"></span>';
+    this.hint.innerHTML = '<span class="track"></span><span class="base"></span><span class="chevron left"></span><span class="chevron right"></span><span class="chevron down"></span><span class="ring"></span><span class="ring late"></span><span class="finger"></span>';
     parent.append(this.hint);
     onTuning(({ onboardingSize, gestureHint }) => {
       this.root.style.setProperty('--onboarding-scale', String(onboardingSize));
@@ -305,21 +304,20 @@ export class Onboarding {
     this.endHole();
   }
 
-  /** Shows the current step's gesture over the active block, following it while it moves or sinks. */
+  /**
+   * Shows the current step's gesture at the bottom centre of the board, where the thumb rests: the
+   * game takes swipes anywhere, so the hint teaches the motion, not a target. Sized by the board cell.
+   */
   private showHint() {
     if (!this.hintStep || !tuning.gestureHint || this.settling) return;
+    const cell = this.scene()?.activeScreen?.cell;
+    if (cell) this.hint.style.setProperty('--cell', `${cell}px`);
     this.hint.dataset.gesture = this.hintStep; this.hint.classList.add('show');
-    cancelAnimationFrame(this.hintFrame);
-    const follow = () => {
-      const spot = this.scene()?.activeScreen;
-      if (spot) { this.hint.style.transform = `translate(${spot.x}px, ${spot.y}px)`; this.hint.style.setProperty('--cell', `${spot.cell}px`); }
-      this.hintFrame = requestAnimationFrame(follow);
-    };
-    follow();
   }
 
+
   private hideHint() {
-    this.hintStep = undefined; clearTimeout(this.hintTimer); cancelAnimationFrame(this.hintFrame);
+    this.hintStep = undefined; clearTimeout(this.hintTimer);
     this.hint.classList.remove('show');
   }
 

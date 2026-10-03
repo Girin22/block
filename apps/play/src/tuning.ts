@@ -36,7 +36,7 @@ export interface Tuning {
   introSweepSeconds: number;
 }
 
-export const TUNING_DEFAULTS: Readonly<Tuning> = { rainSpeed: 1, rippleSize: 1, pauseGap: 1, fallSpeed: 1.1, fillSpeed: 1, typingSpeed: 14, inkSeconds: 0.6, pauseScale: 1, rhythmJitter: 1, stepFadeSeconds: 1.4, stepReadySeconds: 0.5, gestureHint: 1, onboardingSize: 1.5, introSweep: 1, introSweepSeconds: 3 };
+export const TUNING_DEFAULTS: Readonly<Tuning> = { rainSpeed: 1, rippleSize: 1, pauseGap: 1, fallSpeed: 1.1, fillSpeed: 1, typingSpeed: 14, inkSeconds: 0.6, pauseScale: 1, rhythmJitter: 1, stepFadeSeconds: 1.4, stepReadySeconds: 0.5, gestureHint: 1, onboardingSize: 1.5, introSweep: 1, introSweepSeconds: 6 };
 
 /** A `choices` field is a switch between labelled values instead of a gauge. */
 export type TuningGroup = 'weather' | 'screen' | 'block' | 'onboarding';

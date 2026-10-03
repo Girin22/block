@@ -176,16 +176,23 @@ dialog.receipt-open{width:min(420px,calc(100vw - 24px));max-height:90vh;max-heig
 @keyframes onboarding-in{from{opacity:0}to{opacity:1}}
 /* The pause button waits, dimmed, until the intro is started. */
 .onboarding-intro #pause{opacity:.45}
-/* Tutorial gesture hint: a soft fingertip in the handwriting's cream, drawn over the active block once
-   the screen takes input. Tap presses and sends out two thin rings like the rain's ripples; the swipes
+/* Tutorial gesture hint: a soft fingertip in the handwriting's cream at the bottom centre of the board,
+   where the thumb rests, once the screen takes input. A faint track gives it ground in the empty space. Tap presses and sends out two thin rings like the rain's ripples; the swipes
    slide slowly with faint chevrons. Sizes follow the board cell (--cell), so it fits every screen. */
-#onboarding-hint{--c:var(--cell,48px);--ink:250,249,246;position:absolute;left:0;top:0;z-index:2;width:0;height:0;pointer-events:none;opacity:0;transition:opacity 700ms ease}
+#onboarding-hint{--c:var(--cell,48px);--ink:250,249,246;position:absolute;left:50%;top:78%;z-index:2;width:0;height:0;pointer-events:none;opacity:0;transition:opacity 700ms ease}
 #onboarding-hint.show{opacity:1}
 .is-paused #onboarding-hint{opacity:0}
 #onboarding-hint>span{position:absolute;display:none}
 #onboarding-hint .finger{display:block;left:calc(var(--c) * -.32);top:calc(var(--c) * -.32);width:calc(var(--c) * .64);height:calc(var(--c) * .64);border-radius:50%;background:radial-gradient(circle,rgba(var(--ink),.9) 0 34%,rgba(var(--ink),.38) 50%,rgba(var(--ink),0) 70%);opacity:0}
 #onboarding-hint .ring{left:calc(var(--c) * -.5);top:calc(var(--c) * -.5);width:var(--c);height:var(--c);border-radius:50%;border:1.5px solid rgba(var(--ink),.75);opacity:0}
 #onboarding-hint .chevron{width:calc(var(--c) * .3);height:calc(var(--c) * .3);margin:calc(var(--c) * -.15) 0 0 calc(var(--c) * -.15);border-top:2px solid rgba(var(--ink),.7);border-right:2px solid rgba(var(--ink),.7);border-radius:1px;opacity:0}
+#onboarding-hint .track{border-radius:999px;background:rgba(var(--ink),.045);border:1px solid rgba(var(--ink),.13)}
+#onboarding-hint .base{left:calc(var(--c) * -.46);top:calc(var(--c) * -.46);width:calc(var(--c) * .92);height:calc(var(--c) * .92);border-radius:50%;background:rgba(var(--ink),.04);border:1px solid rgba(var(--ink),.14)}
+#onboarding-hint[data-gesture=rotate] .base{display:block}
+#onboarding-hint[data-gesture=move] .track{display:block;left:calc(var(--c) * -2);top:calc(var(--c) * -.38);width:calc(var(--c) * 4);height:calc(var(--c) * .76)}
+/* The down swipe starts higher so its whole stroke stays above the bottom edge. */
+#onboarding-hint[data-gesture=place]{top:66%}
+#onboarding-hint[data-gesture=place] .track{display:block;left:calc(var(--c) * -.38);top:calc(var(--c) * -.38);width:calc(var(--c) * .76);height:calc(var(--c) * 3.25)}
 #onboarding-hint .chevron.left{left:calc(var(--c) * -2.3);transform:rotate(-135deg)}
 #onboarding-hint .chevron.right{left:calc(var(--c) * 2.3);transform:rotate(45deg)}
 #onboarding-hint .chevron.down{top:calc(var(--c) * 3.1);transform:rotate(135deg)}
