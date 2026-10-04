@@ -1,5 +1,7 @@
 package com.simulien.bodobodo;
 
+import android.os.Bundle;
+
 import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
@@ -7,6 +9,13 @@ import androidx.core.view.WindowInsetsControllerCompat;
 import com.getcapacitor.BridgeActivity;
 
 public class MainActivity extends BridgeActivity {
+    @Override
+    public void onCreate(Bundle savedInstanceState) {
+        // The app's own plugin (opens a saved export in the gallery) must be known before the bridge starts.
+        registerPlugin(GalleryPlugin.class);
+        super.onCreate(savedInstanceState);
+    }
+
     /**
      * Full-screen play: the status bar, the navigation bar and a tablet's taskbar (Samsung's row of
      * frequent apps) are all hidden. A swipe from an edge shows them for a moment, then they hide again.

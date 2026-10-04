@@ -1,4 +1,7 @@
-import { Capacitor } from '@capacitor/core';
+import { Capacitor, registerPlugin } from '@capacitor/core';
+
+/** The app's own Android plugin (MainActivity registers it): shows a saved photo in the gallery app. */
+const Gallery = registerPlugin<{ open(options: { path: string }): Promise<void> }>('Gallery');
 
 /**
  * The thin layer between the game and the app shell (Capacitor). On the web every call here is a
@@ -68,15 +71,18 @@ async function albumIdentifier() {
 }
 
 /**
- * Saves an exported pavement where a player looks for it: a PNG goes into the photo library, an SVG
- * (too large for a photo) goes to the share sheet so it can be kept in Files. Returns what happened,
+ * Saves an exported pavement where a player looks for it: a PNG goes into the photo library, and on
+ * Android the gallery then opens on it, so the player sees it saved (2026-10-04; back returns to the
+ * game). An SVG (too large for a photo) goes to the share sheet so it can be kept in Files. Returns what happened,
  * for the status line. Throws when saving failed; a cancelled share returns 'cancelled'.
  */
 export async function saveExport(file: File): Promise<'photo' | 'shared' | 'cancelled'> {
   const uri = await cacheFile(file);
   if (file.type === 'image/png') {
     const { Media } = await import('@capacitor-community/media');
-    await Media.savePhoto({ path: uri, albumIdentifier: await albumIdentifier(), fileName: file.name.replace(/\.png$/, '') });
+    const { filePath } = await Media.savePhoto({ path: uri, albumIdentifier: await albumIdentifier(), fileName: file.name.replace(/\.png$/, '') });
+    // Already saved: a gallery that cannot open only means the picture is not shown.
+    if (filePath && Capacitor.getPlatform() === 'android') await Gallery.open({ path: filePath }).catch(() => {});
     return 'photo';
   }
   const { Share } = await import('@capacitor/share');
