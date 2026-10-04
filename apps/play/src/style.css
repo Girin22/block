@@ -176,43 +176,49 @@ dialog.receipt-open{width:min(420px,calc(100vw - 24px));max-height:90vh;max-heig
 @keyframes onboarding-in{from{opacity:0}to{opacity:1}}
 /* The pause button waits, dimmed, until the intro is started. */
 .onboarding-intro #pause{opacity:.45}
-/* Tutorial gesture hint: a soft fingertip in the handwriting's cream at the bottom centre of the board,
-   where the thumb rests, once the screen takes input. A faint track gives it ground in the empty space. Tap presses and sends out two thin rings like the rain's ripples; the swipes
-   slide slowly with faint chevrons. Sizes follow the board cell (--cell), so it fits every screen. */
-#onboarding-hint{--c:var(--cell,48px);--ink:250,249,246;position:absolute;left:50%;top:78%;z-index:2;width:0;height:0;pointer-events:none;opacity:0;transition:opacity 700ms ease}
+/* Tutorial gesture hint: a soft fingertip at the bottom centre of the board,
+   where the thumb rests, once the screen takes input. Its colour is the white filler's warm grey with a
+   little more red, a shade darker. Only round shapes and no guide behind them:
+   tap presses and lets two soft halos bloom like the rain's ripples; the swipes glide with a blurred wake
+   a beat behind, and a faint short arc, like its afterimage, shows briefly only where each stroke ends. Sizes follow
+   the board cell (--cell), so it fits every screen. */
+#onboarding-hint{--c:var(--cell,48px);--ink:224,210,208;position:absolute;left:50%;top:78%;z-index:2;width:0;height:0;pointer-events:none;opacity:0;transition:opacity 900ms ease}
 #onboarding-hint.show{opacity:1}
 .is-paused #onboarding-hint{opacity:0}
 #onboarding-hint>span{position:absolute;display:none}
-#onboarding-hint .finger{display:block;left:calc(var(--c) * -.32);top:calc(var(--c) * -.32);width:calc(var(--c) * .64);height:calc(var(--c) * .64);border-radius:50%;background:radial-gradient(circle,rgba(var(--ink),.9) 0 34%,rgba(var(--ink),.38) 50%,rgba(var(--ink),0) 70%);opacity:0}
-#onboarding-hint .ring{left:calc(var(--c) * -.5);top:calc(var(--c) * -.5);width:var(--c);height:var(--c);border-radius:50%;border:1.5px solid rgba(var(--ink),.75);opacity:0}
-#onboarding-hint .chevron{width:calc(var(--c) * .3);height:calc(var(--c) * .3);margin:calc(var(--c) * -.15) 0 0 calc(var(--c) * -.15);border-top:2px solid rgba(var(--ink),.7);border-right:2px solid rgba(var(--ink),.7);border-radius:1px;opacity:0}
-#onboarding-hint .track{border-radius:999px;background:rgba(var(--ink),.045);border:1px solid rgba(var(--ink),.13)}
-#onboarding-hint .base{left:calc(var(--c) * -.46);top:calc(var(--c) * -.46);width:calc(var(--c) * .92);height:calc(var(--c) * .92);border-radius:50%;background:rgba(var(--ink),.04);border:1px solid rgba(var(--ink),.14)}
-#onboarding-hint[data-gesture=rotate] .base{display:block}
-#onboarding-hint[data-gesture=move] .track{display:block;left:calc(var(--c) * -2);top:calc(var(--c) * -.38);width:calc(var(--c) * 4);height:calc(var(--c) * .76)}
+#onboarding-hint .finger{display:block;left:calc(var(--c) * -.3);top:calc(var(--c) * -.3);width:calc(var(--c) * .6);height:calc(var(--c) * .6);border-radius:50%;background:radial-gradient(circle,rgba(var(--ink),.92) 0 40%,rgba(var(--ink),.5) 54%,rgba(var(--ink),0) 70%);opacity:0}
+#onboarding-hint .wake{left:calc(var(--c) * -.5);top:calc(var(--c) * -.5);width:var(--c);height:var(--c);border-radius:50%;background:radial-gradient(circle,rgba(var(--ink),.24) 0 18%,rgba(var(--ink),.08) 45%,rgba(var(--ink),0) 70%);opacity:0}
+#onboarding-hint .ring{left:calc(var(--c) * -.5);top:calc(var(--c) * -.5);width:var(--c);height:var(--c);border-radius:50%;background:radial-gradient(circle,rgba(var(--ink),0) 0 30%,rgba(var(--ink),.42) 52%,rgba(var(--ink),0) 70%);opacity:0}
+/* End arc: a short, thick arc around the fingertip's last stop on the side it was heading, like the
+   afterimage the dot leaves as it halts. Only the right border is drawn, so the arc tapers at both ends;
+   the span turns to aim and --dx/--dy nudge it outward as it fades. */
+#onboarding-hint .chevron{left:calc(var(--c) * -.36);top:calc(var(--c) * -.36);width:calc(var(--c) * .72);height:calc(var(--c) * .72);box-sizing:border-box;border-radius:50%;border:calc(var(--c) * .11) solid transparent;border-right-color:rgba(var(--ink),.8);filter:blur(calc(var(--c) * .02));opacity:0}
+#onboarding-hint .chevron.left{margin-left:calc(var(--c) * -1.6);transform:rotate(180deg);--dx:calc(var(--c) * -.12)}
+#onboarding-hint .chevron.right{margin-left:calc(var(--c) * 1.6);--dx:calc(var(--c) * .12)}
+#onboarding-hint .chevron.down{margin-top:calc(var(--c) * 2.5);transform:rotate(90deg);--dy:calc(var(--c) * .12)}
 /* The down swipe starts higher so its whole stroke stays above the bottom edge. */
 #onboarding-hint[data-gesture=place]{top:66%}
-#onboarding-hint[data-gesture=place] .track{display:block;left:calc(var(--c) * -.38);top:calc(var(--c) * -.38);width:calc(var(--c) * .76);height:calc(var(--c) * 3.25)}
-#onboarding-hint .chevron.left{left:calc(var(--c) * -2.3);transform:rotate(-135deg)}
-#onboarding-hint .chevron.right{left:calc(var(--c) * 2.3);transform:rotate(45deg)}
-#onboarding-hint .chevron.down{top:calc(var(--c) * 3.1);transform:rotate(135deg)}
 
-/* Tap: settle, press, lift; the rings spread from the press. */
+/* Tap: settle, press, lift; two soft halos bloom from the press. */
 #onboarding-hint[data-gesture=rotate] .finger{animation:hint-tap 2.4s cubic-bezier(.4,0,.2,1) infinite}
 #onboarding-hint[data-gesture=rotate] .ring{display:block;animation:hint-ring 2.4s cubic-bezier(.2,.6,.3,1) infinite}
-#onboarding-hint[data-gesture=rotate] .ring.late{animation-delay:.22s}
+#onboarding-hint[data-gesture=rotate] .ring.late{animation-delay:.26s}
 @keyframes hint-tap{0%{opacity:0;transform:scale(1.15)}18%{opacity:1;transform:scale(1.15)}30%{transform:scale(.82)}44%{transform:scale(1)}72%{opacity:1}100%{opacity:0;transform:scale(1)}}
-@keyframes hint-ring{0%,27%{opacity:0;transform:scale(.3)}31%{opacity:.85;transform:scale(.36)}85%,100%{opacity:0;transform:scale(1.9)}}
+@keyframes hint-ring{0%,27%{opacity:0;transform:scale(.4)}33%{opacity:1;transform:scale(.5)}88%,100%{opacity:0;transform:scale(2.1)}}
 
-/* Sideways: press, glide right, glide left, come home, lift. Each chevron brightens as the finger nears it. */
-#onboarding-hint[data-gesture=move] .finger{animation:hint-side 3.4s ease-in-out infinite}
-#onboarding-hint[data-gesture=move] .chevron.left,#onboarding-hint[data-gesture=move] .chevron.right{display:block;animation:hint-chevron 3.4s ease-in-out infinite}
-#onboarding-hint[data-gesture=move] .chevron.left{animation-delay:1s}
+/* Sideways: press, glide right, glide left, come home, lift; the wake follows a beat behind. Each
+   arrowhead shows only as the finger reaches its end. */
+#onboarding-hint[data-gesture=move] .finger,#onboarding-hint[data-gesture=move] .wake{display:block;animation:hint-side 3.4s ease-in-out infinite}
+#onboarding-hint[data-gesture=move] .wake{animation-delay:.14s}
+#onboarding-hint[data-gesture=move] .chevron.right{display:block;animation:hint-end-right 3.4s ease-out infinite}
+#onboarding-hint[data-gesture=move] .chevron.left{display:block;animation:hint-end-left 3.4s ease-out infinite}
 @keyframes hint-side{0%{opacity:0;transform:translateX(0) scale(1.1)}10%{opacity:1;transform:translateX(0) scale(.9)}36%{transform:translateX(calc(var(--c) * 1.6)) scale(.9)}66%{transform:translateX(calc(var(--c) * -1.6)) scale(.9)}86%{opacity:1;transform:translateX(0) scale(.9)}100%{opacity:0;transform:translateX(0) scale(1.1)}}
-@keyframes hint-chevron{0%,12%{opacity:0}34%{opacity:.75}56%,100%{opacity:0}}
+@keyframes hint-end-right{0%,26%{opacity:0;translate:0 0}36%{opacity:.4}50%,100%{opacity:0;translate:var(--dx,0) var(--dy,0)}}
+@keyframes hint-end-left{0%,56%{opacity:0;translate:0 0}66%{opacity:.4}80%,100%{opacity:0;translate:var(--dx,0) var(--dy,0)}}
 
-/* Down: press on the block, slide down past it, fade; the chevron below glows as it arrives. */
-#onboarding-hint[data-gesture=place] .finger{animation:hint-down 2.6s cubic-bezier(.45,0,.3,1) infinite}
-#onboarding-hint[data-gesture=place] .chevron.down{display:block;animation:hint-chevron-down 2.6s ease-in-out infinite}
+/* Down: press on the block, slide down past it, fade; the wake follows and the arrowhead below shows as it arrives. */
+#onboarding-hint[data-gesture=place] .finger,#onboarding-hint[data-gesture=place] .wake{display:block;animation:hint-down 2.6s cubic-bezier(.45,0,.3,1) infinite}
+#onboarding-hint[data-gesture=place] .wake{animation-delay:.14s}
+#onboarding-hint[data-gesture=place] .chevron.down{display:block;animation:hint-end-down 2.6s ease-out infinite}
 @keyframes hint-down{0%{opacity:0;transform:translateY(0) scale(1.1)}14%{opacity:1;transform:translateY(0) scale(.9)}70%{opacity:.9;transform:translateY(calc(var(--c) * 2.5)) scale(.9)}86%,100%{opacity:0;transform:translateY(calc(var(--c) * 2.7)) scale(1)}}
-@keyframes hint-chevron-down{0%,30%{opacity:0}66%{opacity:.75}92%,100%{opacity:0}}
+@keyframes hint-end-down{0%,58%{opacity:0;translate:0 0}70%{opacity:.4}86%,100%{opacity:0;translate:var(--dx,0) var(--dy,0)}}

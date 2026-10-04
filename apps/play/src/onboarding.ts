@@ -200,9 +200,9 @@ export class Onboarding {
     this.text = document.createElement('p'); this.text.className = 'onboarding-text';
     this.start = document.createElement('button'); this.start.id = 'onboarding-start'; this.start.type = 'button'; this.start.textContent = '시작하기';
     this.root.append(this.text, this.start); parent.append(this.root);
-    // The gesture hint at the bottom centre: a soft fingertip on a faint track (see style.css).
+    // The gesture hint at the bottom centre: a soft fingertip with a trailing wake, no guide behind it (see style.css).
     this.hint = document.createElement('div'); this.hint.id = 'onboarding-hint'; this.hint.setAttribute('aria-hidden', 'true');
-    this.hint.innerHTML = '<span class="track"></span><span class="base"></span><span class="chevron left"></span><span class="chevron right"></span><span class="chevron down"></span><span class="ring"></span><span class="ring late"></span><span class="finger"></span>';
+    this.hint.innerHTML = '<span class="chevron left"></span><span class="chevron right"></span><span class="chevron down"></span><span class="ring"></span><span class="ring late"></span><span class="wake"></span><span class="finger"></span>';
     parent.append(this.hint);
     onTuning(({ onboardingSize, gestureHint }) => {
       this.root.style.setProperty('--onboarding-scale', String(onboardingSize));

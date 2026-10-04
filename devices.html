@@ -31,7 +31,14 @@ figcaption small{display:block;color:var(--sub)}
 .overlay{position:absolute;pointer-events:none;background:#000c;z-index:2}
 .island{border-radius:999px}
 .home{background:#fffc;border-radius:999px;height:5px}
-.status{left:0;right:0;top:0;background:#0006}
+.status{left:0;right:0;top:0;display:flex;align-items:center;justify-content:space-between;box-sizing:border-box;color:#fff;font-weight:600;letter-spacing:0;background:#0007}
+/* The app hides the status bar: only its outline shows, until '상태 표시줄 펼침' brings it back as a swipe from the top would. */
+.status.hidden{background:none;outline:1px dashed #ffffff59;outline-offset:-1px}
+.status.hidden>*{visibility:hidden}
+.status .icons{display:inline-flex;align-items:center;gap:.4em}
+.status .battery{display:inline-block;width:1.7em;height:.85em;border:1px solid #fffc;border-radius:.25em;box-sizing:border-box;background:linear-gradient(90deg,#fff 70%,transparent 0) padding-box;background-clip:content-box;padding:1px}
+.camera{border-radius:50%;background:#000;box-shadow:0 0 0 1.5px #1a1a1a;z-index:3}
+.camera.under{background:#0005;box-shadow:none}
 .locked{position:absolute;inset:0;z-index:3;display:grid;place-items:center;text-align:center;padding:12px;color:#fff;background:#000b;font-size:12px}
 </style>
 </head>
@@ -40,27 +47,29 @@ figcaption small{display:block;color:var(--sub)}
   <h1>기기 미리보기</h1>
   <fieldset><legend>방향</legend><button id="portrait" aria-pressed="true">세로</button><button id="landscape" aria-pressed="false">가로</button></fieldset>
   <fieldset><legend>크기</legend><button data-zoom="fit" aria-pressed="true">맞춤</button><button data-zoom="0.5" aria-pressed="false">50%</button><button data-zoom="1" aria-pressed="false">실제</button></fieldset>
-  <fieldset><legend>표시</legend><label class="chip"><input type="checkbox" id="overlays" checked>노치·홈 바</label><label class="chip"><input type="checkbox" id="admin">관리자 패널</label><label class="chip"><input type="checkbox" id="lock" checked>앱 세로 고정</label></fieldset>
+  <fieldset><legend>표시</legend><label class="chip"><input type="checkbox" id="overlays" checked>카메라·상태 표시줄·홈 바</label><label class="chip"><input type="checkbox" id="bars">상태 표시줄 펼침</label><label class="chip"><input type="checkbox" id="admin">관리자 패널</label><label class="chip"><input type="checkbox" id="lock" checked>앱 세로 고정</label></fieldset>
   <button id="reload">모두 새로고침</button>
-  <p class="note">CSS 화면 크기 기준 근사치입니다. 노치·홈 바는 위치만 표시하며 실제 안전 영역 값은 에뮬레이터나 실기기에서 확인하세요. 소리는 각 화면을 한 번 눌러야 시작합니다.</p>
+  <p class="note">CSS 화면 크기 기준 근사치입니다. 앱은 상태 표시줄(안드로이드는 아래 내비게이션 바도)을 숨기므로 점선으로 자리만 표시합니다. ‘상태 표시줄 펼침’은 위에서 쓸어내렸을 때의 모습입니다. 카메라 구멍과 다이내믹 아일랜드는 항상 화면을 가립니다. 실제 안전 영역 값은 에뮬레이터나 실기기에서 확인하세요. 소리는 각 화면을 한 번 눌러야 시작합니다.</p>
 </header>
 <main id="devices"></main>
 <script type="module">
-// CSS viewport sizes (portrait) with the system UI that overlaps them. Values are approximate.
+// CSS viewport sizes (portrait) with the system UI that overlaps them. Values are approximate. camera: a
+// punch-hole (x: centre as a share of the width, default the middle; under: an under-display camera, only
+// faintly visible). Tablets and the iPhone SE keep their camera in the bezel.
 const DEVICES = [
-  { name: '갤럭시 S24', w: 360, h: 780, radius: 28, top: { kind: 'status', size: 28 }, bottom: 14, group: 'galaxy' },
-  { name: '갤럭시 S24 Ultra', w: 384, h: 824, radius: 18, top: { kind: 'status', size: 30 }, bottom: 14, group: 'galaxy' },
-  { name: '갤럭시 Z 플립6', w: 360, h: 880, radius: 26, top: { kind: 'status', size: 28 }, bottom: 14, group: 'foldable' },
-  { name: '갤럭시 Z 폴드6 접힘', w: 344, h: 882, radius: 22, top: { kind: 'status', size: 28 }, bottom: 14, group: 'foldable' },
-  { name: '갤럭시 Z 폴드6 펼침', w: 882, h: 1104, radius: 18, top: { kind: 'status', size: 28 }, bottom: 14, group: 'foldable' },
-  { name: '갤럭시 탭 S9', w: 800, h: 1280, radius: 18, top: { kind: 'status', size: 26 }, bottom: 14, group: 'tablet' },
-  { name: '아이폰 SE', w: 375, h: 667, radius: 0, top: { kind: 'status', size: 20 }, bottom: 0, group: 'iphone' },
-  { name: '아이폰 16', w: 393, h: 852, radius: 48, top: { kind: 'island', size: 59 }, bottom: 34, group: 'iphone' },
-  { name: '아이폰 16 Pro Max', w: 440, h: 956, radius: 52, top: { kind: 'island', size: 62 }, bottom: 34, group: 'iphone' },
-  { name: '아이패드 10세대', w: 820, h: 1180, radius: 18, top: { kind: 'status', size: 24 }, bottom: 20, group: 'tablet' },
-  { name: '아이패드 Pro 13', w: 1032, h: 1376, radius: 18, top: { kind: 'status', size: 24 }, bottom: 20, group: 'tablet' },
+  { name: '갤럭시 S24', w: 360, h: 780, radius: 28, top: { kind: 'status', size: 28 }, camera: { d: 11, y: 9 }, bottom: 14, os: 'android', group: 'galaxy' },
+  { name: '갤럭시 S24 Ultra', w: 384, h: 824, radius: 18, top: { kind: 'status', size: 30 }, camera: { d: 11, y: 10 }, bottom: 14, os: 'android', group: 'galaxy' },
+  { name: '갤럭시 Z 플립6', w: 360, h: 880, radius: 26, top: { kind: 'status', size: 28 }, camera: { d: 10, y: 9 }, bottom: 14, os: 'android', group: 'foldable' },
+  { name: '갤럭시 Z 폴드6 접힘', w: 344, h: 882, radius: 22, top: { kind: 'status', size: 28 }, camera: { d: 10, y: 9 }, bottom: 14, os: 'android', group: 'foldable' },
+  { name: '갤럭시 Z 폴드6 펼침', w: 882, h: 1104, radius: 18, top: { kind: 'status', size: 28 }, camera: { d: 16, y: 8, x: 0.75, under: true }, bottom: 14, os: 'android', group: 'foldable' },
+  { name: '갤럭시 탭 S9', w: 800, h: 1280, radius: 18, top: { kind: 'status', size: 26 }, bottom: 14, os: 'android', group: 'tablet' },
+  { name: '아이폰 SE', w: 375, h: 667, radius: 0, top: { kind: 'status', size: 20 }, bottom: 0, os: 'ios', group: 'iphone' },
+  { name: '아이폰 16', w: 393, h: 852, radius: 48, top: { kind: 'island', size: 59 }, bottom: 34, os: 'ios', group: 'iphone' },
+  { name: '아이폰 16 Pro Max', w: 440, h: 956, radius: 52, top: { kind: 'island', size: 62 }, bottom: 34, os: 'ios', group: 'iphone' },
+  { name: '아이패드 10세대', w: 820, h: 1180, radius: 18, top: { kind: 'status', size: 24 }, bottom: 20, os: 'ios', group: 'tablet' },
+  { name: '아이패드 Pro 13', w: 1032, h: 1376, radius: 18, top: { kind: 'status', size: 24 }, bottom: 20, os: 'ios', group: 'tablet' },
 ];
-const state = { landscape: false, zoom: 'fit', overlays: true, admin: false, lock: true };
+const state = { landscape: false, zoom: 'fit', overlays: true, bars: false, admin: false, lock: true };
 const root = document.querySelector('#devices');
 
 function src() { return `/${state.admin ? '?admin' : ''}`; }
@@ -92,20 +101,24 @@ function render() {
 }
 function overlays(device, turned, scale) {
   const list = [], px = v => `${v * scale}px`;
+  const add = (className, style) => { const el = document.createElement('div'); el.className = `overlay ${className}`; Object.assign(el.style, style); list.push(el); return el; };
+  // Status bar along the top: time on the left, signal and battery on the right. Hidden in the app.
+  const size = device.top.kind === 'island' ? device.top.size - 6 : device.top.size;
+  const bar = add(`status${state.bars ? '' : ' hidden'}`, { height: px(size), fontSize: px(Math.min(13, size * 0.48)), padding: `0 ${px(device.top.kind === 'island' ? 34 : 14)}` });
+  bar.innerHTML = '<span>12:30</span><span class="icons"><span>▂▄▆</span><span class="battery"></span></span>';
+  const camera = device.camera, island = device.top.kind === 'island';
   if (!turned) {
-    if (device.top.kind === 'island') {
-      const island = document.createElement('div'); island.className = 'overlay island';
-      Object.assign(island.style, { width: px(124), height: px(36), top: px(11), left: `calc(50% - ${px(62)})` }); list.push(island);
-    } else {
-      const bar = document.createElement('div'); bar.className = 'overlay status'; bar.style.height = px(device.top.size); list.push(bar);
+    if (island) add('island', { width: px(124), height: px(36), top: px(11), left: `calc(50% - ${px(62)})` });
+    if (camera) add(`camera${camera.under ? ' under' : ''}`, { width: px(camera.d), height: px(camera.d), top: px(camera.y), left: `calc(${(camera.x ?? 0.5) * 100}% - ${px(camera.d / 2)})` });
+    // Android hides its navigation handle with the status bar; the iPhone's home indicator stays.
+    if (device.bottom && (device.os === 'ios' || state.bars)) {
+      const width = Math.min(140, device.w * 0.36);
+      add('home', { width: px(width), bottom: px(8), left: `calc(50% - ${px(width / 2)})` });
     }
-    if (device.bottom) {
-      const home = document.createElement('div'); home.className = 'overlay home';
-      Object.assign(home.style, { width: px(Math.min(140, device.w * 0.36)), bottom: px(8), left: `calc(50% - ${px(Math.min(140, device.w * 0.36) / 2)})` }); list.push(home);
-    }
-  } else if (device.top.kind === 'island') {
-    const island = document.createElement('div'); island.className = 'overlay island';
-    Object.assign(island.style, { width: px(36), height: px(124), left: px(11), top: `calc(50% - ${px(62)})` }); list.push(island);
+  } else {
+    // Turned a quarter to the left: what sat at the top is now on the left edge.
+    if (island) add('island', { width: px(36), height: px(124), left: px(11), top: `calc(50% - ${px(62)})` });
+    if (camera) add(`camera${camera.under ? ' under' : ''}`, { width: px(camera.d), height: px(camera.d), left: px(camera.y), top: `calc(${(1 - (camera.x ?? 0.5)) * 100}% - ${px(camera.d / 2)})` });
   }
   return list;
 }
@@ -114,6 +127,7 @@ document.querySelector('#portrait').onclick = e => { state.landscape = false; pr
 document.querySelector('#landscape').onclick = e => { state.landscape = true; press('#portrait,#landscape', e.currentTarget); render(); };
 document.querySelectorAll('[data-zoom]').forEach(b => b.onclick = () => { state.zoom = b.dataset.zoom; press('[data-zoom]', b); render(); });
 document.querySelector('#overlays').onchange = e => { state.overlays = e.target.checked; render(); };
+document.querySelector('#bars').onchange = e => { state.bars = e.target.checked; render(); };
 document.querySelector('#admin').onchange = e => { state.admin = e.target.checked; render(); };
 document.querySelector('#lock').onchange = e => { state.lock = e.target.checked; render(); };
 document.querySelector('#reload').onclick = render;
