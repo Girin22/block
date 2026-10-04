@@ -44,7 +44,7 @@ function row(field: TuningField) {
 export function mountTuningPanel(admin: HTMLElement) {
   restore();
   const toggle = document.createElement('button'); toggle.type = 'button'; toggle.id = 'tuning-toggle';
-  toggle.textContent = '조절'; toggle.setAttribute('aria-expanded', 'false'); toggle.setAttribute('aria-controls', 'tuning');
+  toggle.textContent = '편집'; toggle.setAttribute('aria-expanded', 'false'); toggle.setAttribute('aria-controls', 'tuning');
   const sheet = document.createElement('section'); sheet.id = 'tuning'; sheet.setAttribute('aria-label', '기획 조절값');
   sheet.innerHTML = `<header class="tuning-head">
       <div><b>기획 조절값</b><span>바꾼 값은 이 기기에만 저장돼요</span></div>
@@ -68,7 +68,9 @@ export function mountTuningPanel(admin: HTMLElement) {
       <p class="tuning-status" role="status"></p>
       <div class="actions"><button type="button" id="tuning-reset">기본값으로</button><button type="button" class="primary" id="tuning-copy">설정값 복사</button></div>
     </footer>`;
-  admin.prepend(toggle); document.body.append(sheet);
+  // Above '편집': wipes what the app keeps on this device (the onboarding marks, edited values and copy).
+  const wipe = document.createElement('button'); wipe.type = 'button'; wipe.id = 'app-data-reset'; wipe.textContent = '앱 데이터 초기화';
+  admin.prepend(wipe, toggle); document.body.append(sheet);
   // The device readout moves in with the values, so the corner of the game stays clear.
   sheet.querySelector('#tuning-device')!.append(...Array.from(admin.querySelectorAll('.device')));
   admin.classList.add('has-tuning');
@@ -109,6 +111,12 @@ export function mountTuningPanel(admin: HTMLElement) {
   }
   // Forget the "seen" marks and start over, so the planner sees the intro and the first-hole tip again.
   sheet.querySelector('#onboarding-replay')!.addEventListener('click', () => { resetOnboarding(); location.reload(); });
+  // Everything the app keeps on the device lives in this origin's storage, so clearing it is a fresh install.
+  wipe.addEventListener('click', () => {
+    if (!confirm('앱 데이터를 모두 지우고 처음부터 시작할까요?')) return;
+    try { localStorage.clear(); sessionStorage.clear(); } catch { /* Nothing stored. */ }
+    location.reload();
+  });
   const open = (show: boolean) => { sheet.classList.toggle('open', show); toggle.setAttribute('aria-expanded', String(show)); };
   toggle.addEventListener('click', () => open(!sheet.classList.contains('open')));
   sheet.querySelector('#tuning-close')!.addEventListener('click', () => open(false));

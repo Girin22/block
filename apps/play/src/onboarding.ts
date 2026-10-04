@@ -46,6 +46,8 @@ const HOLD = 1.1, FADE = 0.45;
 const HOLE_GAP = 0.6;
 /** Seconds after the finger lifts before the gesture hint returns, if that step is still not done. */
 const HINT_AGAIN = 1.4;
+/** Seconds the gesture hint takes to fade in (matches the CSS); its gesture opens once it is fully shown. */
+const HINT_IN = 0.9;
 
 interface Writing { done: Promise<void>; finish: () => void; skip?: () => void; }
 
@@ -178,6 +180,7 @@ const wait = (seconds: number) => new Promise<void>(resolve => setTimeout(resolv
 
 export interface OnboardingScene { conceal: boolean; holdFall: boolean; readonly activeScreen?: { x: number; y: number; cell: number }; }
 type Step = 'intro' | 'rotate' | 'move' | 'place' | 'done';
+export type Gesture = 'rotate' | 'move' | 'place';
 
 export class Onboarding {
   private step: Step = seen(SEEN_INTRO) ? 'done' : 'intro';
@@ -186,8 +189,14 @@ export class Onboarding {
   private hint: HTMLElement;
   private hintStep?: 'rotate' | 'move' | 'place';
   private hintTimer = 0;
-  /** Tutorial pacing: input waits while one line goes and the next is written, plus a short beat. */
+  /** Tutorial pacing: a step's own gesture waits while one line goes and the next is written, plus a short beat. */
   private settling = false;
+  /**
+   * Gestures the tutorial has opened. Each opens when its step is ready (line written, then the round
+   * hint fully shown) and stays open, so earlier ones keep working while the next line is written: rotate, then rotate and
+   * move, then everything.
+   */
+  private unlocked = new Set<Gesture>();
   /** Bumped to abandon an unfinished sequence (a new step, or the hole tip cut short). */
   private run = 0;
   private writing?: Writing;
@@ -220,8 +229,13 @@ export class Onboarding {
     this.start.addEventListener('click', () => { if (this.step === 'intro') void this.next('rotate'); });
   }
 
-  /** Whether game input is held back: the intro, and the first-hole tip while it plays. */
-  get blocking() { return this.step === 'intro' || this.holeRunning || this.settling; }
+  /**
+   * Whether all game input is held back: the intro, the first-hole tip while it plays, and the first
+   * tutorial line while it is written (no gesture is open yet).
+   */
+  get blocking() { return this.step === 'intro' || this.holeRunning || (this.settling && !this.unlocked.size); }
+  /** Whether this gesture is open yet; after the tutorial, every one is. */
+  allows(gesture: Gesture) { return this.step === 'done' || this.unlocked.has(gesture); }
   get introShowing() { return this.step === 'intro'; }
 
   /** Starts the intro on a first launch; otherwise nothing shows. */
@@ -262,8 +276,9 @@ export class Onboarding {
   private async next(step: Step) {
     const run = ++this.run, from = this.step;
     this.writing?.finish(); this.start.classList.remove('ready'); this.hideHint();
-    // The new step starts at once, but the screen takes no input (and the block waits) until its line has
+    // The new step starts at once, but its gesture stays closed (and the block waits) until its line has
     // been written and a short beat has passed, so the player reads each line instead of swiping through.
+    // Gestures opened by earlier steps keep working meanwhile.
     this.step = step; this.settling = step === 'rotate' || step === 'move' || step === 'place'; this.apply(); this.changed();
     if (step === 'done') mark(SEEN_INTRO);
     if (this.text.childElementCount) {
@@ -277,7 +292,11 @@ export class Onboarding {
     await this.show(step);
     await wait(tuning.stepReadySeconds); if (run !== this.run) return;
     this.settling = false; this.apply(); this.changed();
-    if (step === 'rotate' || step === 'move' || step === 'place') { this.hintStep = step; this.showHint(); }
+    if (step === 'rotate' || step === 'move' || step === 'place') {
+      this.hintStep = step; this.showHint();
+      if (tuning.gestureHint) { await wait(HINT_IN); if (run !== this.run) return; }
+      this.unlocked.add(step);
+    }
   }
 
 

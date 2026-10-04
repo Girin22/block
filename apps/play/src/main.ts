@@ -207,9 +207,9 @@ canvas.addEventListener('pointermove', event => {
   if (Math.hypot(dx, dy) > 12) gesture.moved = true;
   gesture.axis ??= swipeAxis(dx, dy);
   if (gesture.moved) {
-    if (gesture.axis === 'horizontal') aim(gesture.column + Math.round(dx / view.cellPixels));
+    if (gesture.axis === 'horizontal' && onboarding.allows('move')) aim(gesture.column + Math.round(dx / view.cellPixels));
     const down = Math.max(0, event.clientY - gesture.lastY);
-    if (gesture.axis === 'vertical') {
+    if (gesture.axis === 'vertical' && onboarding.allows('place')) {
       if (isDownSwipe(dx, dy)) gesture.lowered = true;
       if (down > 0) view.lower(down / view.cellPixels);
     }
@@ -222,8 +222,9 @@ canvas.addEventListener('pointerup', event => {
   view.endDrag();
   if (blocked()) return;
   const dx = event.clientX - g.x, dy = event.clientY - g.y;
-  if (!g.moved && Math.hypot(dx, dy) < 12) aim(x, ((rotation + 1) % 4) as Rotation);
-  else if (g.lowered && isDownSwipe(dx, dy) && view.canRelease) drop();
+  // During the tutorial a gesture does nothing until its step has opened it (see Onboarding.allows).
+  if (!g.moved && Math.hypot(dx, dy) < 12) { if (onboarding.allows('rotate')) aim(x, ((rotation + 1) % 4) as Rotation); }
+  else if (g.lowered && isDownSwipe(dx, dy) && view.canRelease && onboarding.allows('place')) drop();
 });
 function cancelGesture() { if (gesture) { gesture = undefined; view?.endDrag(); } }
 canvas.addEventListener('pointercancel', cancelGesture);
@@ -231,6 +232,7 @@ canvas.addEventListener('lostpointercapture', cancelGesture);
 canvas.addEventListener('keydown', event => {
   if (blocked() || event.repeat || event.ctrlKey || event.metaKey || event.altKey) return;
   if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Space'].includes(event.code)) return;
+  if (!onboarding.allows(event.code === 'ArrowUp' ? 'rotate' : event.code === 'ArrowLeft' || event.code === 'ArrowRight' ? 'move' : 'place')) return;
   view.start(); playTimer.start(); // Keyboard testing is equivalent to the first tile interaction.
   event.preventDefault(); sound.unlock();
   if (event.code === 'ArrowLeft') aim(x - 1);
