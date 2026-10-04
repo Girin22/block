@@ -91,6 +91,9 @@ button:focus-visible{outline:2px solid #a7c897;outline-offset:4px}
 @media(max-height:500px){.pause-content{--gap:clamp(10px,2.6vh,34px);--gap:clamp(10px,2.6dvh,34px)}}
 .stat-icon{width:auto;height:var(--icon);object-fit:contain;filter:drop-shadow(-3px 5px 5px #0006)}
 .stat-icon.small{height:var(--small)}
+/* Each count sits a little closer to the block above it than to the next row (2026-10-04), so it reads as
+   that block's count. */
+#green-count,#white-count{top:calc(-.08em - var(--gap) * var(--gap-scale, 1) * .55)}
 /* Environment picker: a pill of four icons. The selected one sits on a thumb shaped and coloured like
    the white filler tile, which slides between segments with a slight spring. 4 x 46px + padding stays
    clear of the pause button on a 320px-wide screen. */
@@ -134,7 +137,13 @@ button:focus-visible{outline:2px solid #a7c897;outline-offset:4px}
 /* "새로 쌓기" sits one gap under the export in an implicit row; its margins shrink that row to the ink
    height, matching the rows above, while the padding keeps the 44px touch target. */
 #restart{margin:calc((var(--ink) - var(--text-size)) / 2 - 14px) 0}
+/* The two actions get more air between them than the stat rows (2026-10-04): 1.6 gaps instead of one,
+   so neither is pressed by mistake for the other. */
+#restart{margin-top:calc((var(--ink) - var(--text-size)) / 2 - 14px + var(--gap) * var(--gap-scale, 1) * .6)}
 #export:disabled{cursor:wait;text-decoration:none;opacity:.7}
+/* Phones (under 600 px wide) set the two actions smaller, as they do the onboarding text (80%); the row
+   keeps its height, so nothing else on the pause screen moves. */
+@media(max-width:599px){#export,#restart{font-size:calc(var(--text-size) * .8)}}
 #session-limit,#export-status{font-size:14px;line-height:1.5;text-align:center;margin:0}
 #export-status:empty{display:none}
 dialog{border:1px solid #dce2d3;background:#f6f5ee;box-shadow:0 18px 70px #0003}
@@ -152,6 +161,9 @@ dialog.receipt-open{width:min(420px,calc(100vw - 24px));max-height:90vh;max-heig
 /* First-run guide: handwriting over the board, written one character at a time. Only the intro takes
    touches (to finish the writing and to start); the steps leave the board free to play. */
 #onboarding{position:absolute;inset:0;z-index:2;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:calc(var(--onboarding-size) * 3.4);padding:0 24px;pointer-events:none;color:#faf9f6;--onboarding-size:calc(clamp(16px,2vh,24px) * var(--onboarding-scale,1.5));--onboarding-size:calc(clamp(16px,2dvh,24px) * var(--onboarding-scale,1.5));transition:opacity 300ms ease}
+/* Phones (under 600 px wide, Android's own phone/tablet line) hold the same lines in a much smaller
+   hand, so the text is set smaller there (`onboardingPhoneScale`); tablets keep the full size. */
+@media(max-width:599px){#onboarding{--onboarding-size:calc(clamp(16px,2vh,24px) * var(--onboarding-scale,1.5) * var(--onboarding-phone,.8));--onboarding-size:calc(clamp(16px,2dvh,24px) * var(--onboarding-scale,1.5) * var(--onboarding-phone,.8))}}
 #onboarding.intro{pointer-events:auto}
 .is-paused #onboarding{opacity:0}
 .onboarding-text{margin:0;display:flex;flex-direction:column;align-items:center;font-size:var(--onboarding-size);line-height:1.65;text-align:center;transition:opacity 450ms ease}
@@ -159,7 +171,7 @@ dialog.receipt-open{width:min(420px,calc(100vw - 24px));max-height:90vh;max-heig
 /* Tutorial lines leave unhurried: a long, soft fade that rises a little and loses focus as it goes. */
 .onboarding-text.leaving.slow{filter:blur(1.5px);transform:translateY(-.3em);transition:opacity var(--leave) cubic-bezier(.45,0,.25,1),filter var(--leave) ease-in,transform var(--leave) cubic-bezier(.3,0,.2,1)}
 .onboarding-text .line{display:block;white-space:pre-wrap}
-.onboarding-text .underline,#onboarding-start{text-decoration:underline;text-underline-offset:5px}
+#onboarding-start{text-decoration:underline;text-underline-offset:5px}
 /* A long line wraps into balanced halves instead of leaving one word alone. */
 .onboarding-text .line{text-wrap:balance}
 /* Each written character settles in like ink: it fades up from a slight blur and drops a hair into place,
@@ -169,6 +181,9 @@ dialog.receipt-open{width:min(420px,calc(100vw - 24px));max-height:90vh;max-heig
    from its top to its bottom. Mask 2.25x tall with the edge at 44.4-55.6%: hidden at the start, fully shown at the end. */
 .onboarding-text.sweep{-webkit-mask-image:linear-gradient(to bottom,#000 44.4%,transparent 55.6%);mask-image:linear-gradient(to bottom,#000 44.4%,transparent 55.6%);-webkit-mask-size:100% 225%;mask-size:100% 225%;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;-webkit-mask-position:0 var(--mask-y,100%);mask-position:0 var(--mask-y,100%)}
 .onboarding-text .ch.on{opacity:1;filter:none;transform:none}
+/* The later, short pages come in whole: an edge 0.7 of the text's height (mask 2.7x tall, edge at
+   37.0-63.0%), so both lines show together in one soft pass instead of one after the other. */
+.onboarding-text.sweep.whole{-webkit-mask-image:linear-gradient(to bottom,#000 37%,transparent 63%);mask-image:linear-gradient(to bottom,#000 37%,transparent 63%);-webkit-mask-size:100% 270%;mask-size:100% 270%}
 /* The start button holds its place for the whole intro, so the text never shifts when it appears. */
 #onboarding-start{display:none;min-height:44px;padding:10px 20px;background:none;font-size:var(--onboarding-size);color:inherit;touch-action:manipulation}
 #onboarding.intro #onboarding-start{display:block;visibility:hidden}
@@ -176,6 +191,37 @@ dialog.receipt-open{width:min(420px,calc(100vw - 24px));max-height:90vh;max-heig
 @keyframes onboarding-in{from{opacity:0}to{opacity:1}}
 /* The pause button waits, dimmed, until the intro is started. */
 .onboarding-intro #pause{opacity:.45}
+/* Studio intro (studio-intro.ts): the board's ground over everything in the game column, a pinwheel of
+   pavers sized by --c (one cell) centred at 34% of the height as in the frames, and the makers' names beneath. Blocks drop in
+   the way the game's do, accelerating into contact; the white filler is lowered in like the game's fillers. */
+#studio-intro{--leave:1;position:absolute;inset:0;z-index:6;background:#2c2929}
+/* Hand-over to the game, unhurried (1.4 s, scaled by --leave): the mark and names drift up and fade
+   first, then the ground clears from 0.4 s, letting the board and the onboarding's first line through. */
+#studio-intro.leaving{pointer-events:none;background:transparent;transition:background-color calc(var(--leave) * 1s) cubic-bezier(.45,0,.35,1) calc(var(--leave) * .4s)}
+#studio-intro.leaving>*{opacity:0;translate:0 calc(var(--c) * -.25);transition:opacity calc(var(--leave) * .8s) ease-in,translate calc(var(--leave) * .9s) cubic-bezier(.4,0,.6,1)}
+.studio-mark{position:absolute;left:50%;top:34%;width:0;height:0}
+.studio-mark img{position:absolute;display:block;filter:drop-shadow(-3px 5px 5px #0006);user-select:none;-webkit-user-drag:none}
+/* A paver is set down from above, not shot in from off screen (2026-10-04): it appears lifted 2.4 cells
+   up, a little larger and with a wide soft shadow, falls faster and faster as its shadow tightens, and
+   gives a slight squash on contact before it settles, so each landing has weight. */
+.studio-mark .drop{animation:studio-drop var(--drop,.55s) linear both}
+/* The white filler is laid in the way the game lays one (drop-motion.ts): it starts 0.28 of a cell above,
+   8% larger and tilted 5°, fades in over the first third, and settles gently, its shadow tightening. */
+.studio-mark .fill{animation:studio-fill var(--fill,.86s) cubic-bezier(.33,0,.25,1) both}
+@keyframes studio-drop{
+  0%{opacity:0;transform:translateY(calc(var(--c) * -2.4)) scale(1.16);filter:drop-shadow(-9px 16px 14px #0003);animation-timing-function:cubic-bezier(.5,0,.9,.5)}
+  22%{opacity:1}
+  76%{transform:translateY(0) scale(1);filter:drop-shadow(-3px 5px 5px #0006);animation-timing-function:cubic-bezier(.2,.6,.4,1)}
+  86%{transform:translateY(calc(var(--c) * .02)) scale(.975,.96);animation-timing-function:cubic-bezier(.4,0,.3,1)}
+  100%{opacity:1;transform:none;filter:drop-shadow(-3px 5px 5px #0006)}}
+@keyframes studio-fill{0%{opacity:0;transform:translateY(calc(var(--c) * -.28)) scale(1.08) rotate(5deg);filter:drop-shadow(-5px 9px 9px #0005)}35%{opacity:1}100%{opacity:1;transform:none;filter:drop-shadow(-3px 5px 5px #0006)}}
+/* The names rise a little and fade in, unhurried, while the filler is laid. */
+@keyframes studio-rise{from{opacity:0;transform:translateY(.7em)}to{opacity:1;transform:none}}
+.studio-credit{position:absolute;left:0;right:0;top:calc(39.5% + var(--c) * 1.64);margin:0;display:flex;flex-direction:column;align-items:center;gap:0;color:#faf9f6;font-family:'GangBuJang',sans-serif;font-size:clamp(20px,4.1vh,40px);font-size:clamp(20px,4.1dvh,40px);line-height:1.05}
+/* The lines carry the entrance, so the paragraph itself is free to fade at the hand-over. */
+.studio-credit span{animation:studio-rise var(--credit,1.2s) cubic-bezier(.22,.61,.36,1) var(--credit-at,0s) both}
+.studio-credit span:nth-child(2){font-size:.7em;color:#faf9f6cc}
+
 /* Tutorial gesture hint: a soft fingertip at the bottom centre of the board,
    where the thumb rests, once the screen takes input. Its colour is the white filler's warm grey with a
    little more red, a shade darker. Only round shapes and no guide behind them:
@@ -222,3 +268,13 @@ dialog.receipt-open{width:min(420px,calc(100vw - 24px));max-height:90vh;max-heig
 #onboarding-hint[data-gesture=place] .chevron.down{display:block;animation:hint-end-down 2.6s ease-out infinite}
 @keyframes hint-down{0%{opacity:0;transform:translateY(0) scale(1.1)}14%{opacity:1;transform:translateY(0) scale(.9)}70%{opacity:.9;transform:translateY(calc(var(--c) * 2.5)) scale(.9)}86%,100%{opacity:0;transform:translateY(calc(var(--c) * 2.7)) scale(1)}}
 @keyframes hint-end-down{0%,58%{opacity:0;translate:0 0}70%{opacity:.4}86%,100%{opacity:0;translate:var(--dx,0) var(--dy,0)}}
+
+/* Red button: the tap's two halos bloom slowly behind the pause button (no fingertip over it). Centred on
+   the button: 14px + 24px down, 16px + 24px in from the right. */
+#onboarding-hint[data-gesture=restart]{--c:44px;top:calc(38px + env(safe-area-inset-top));left:calc(100% - 40px - env(safe-area-inset-right))}
+#onboarding-hint[data-gesture=restart] .finger{display:none}
+#onboarding-hint[data-gesture=restart] .ring{display:block;animation:hint-ring 2.8s cubic-bezier(.2,.6,.3,1) infinite}
+#onboarding-hint[data-gesture=restart] .ring.late{animation-delay:.3s}
+/* Paused from that line: "새로 쌓기" breathes twice (about 3 s with the screen's entrance), then rests. */
+.onboarding-restart.is-paused #restart{animation:onboarding-breathe 1.2s ease-in-out .6s 2}
+@keyframes onboarding-breathe{0%,100%{opacity:1}50%{opacity:.4}}

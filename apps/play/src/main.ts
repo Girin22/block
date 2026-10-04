@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 import './style.css';
-import { formatMeters, Pavement, SPAWN_ROTATION, SPAWN_X, type Rotation } from '../../../packages/play-core';
+import { formatMeters, Pavement, SPAWN_ROTATION, SPAWN_X, WIDTH, type Rotation } from '../../../packages/play-core';
 import { PlayScene } from './scene';
 import { PlaySound } from './sound';
 import { isDownSwipe, swipeAxis, type SwipeAxis } from './input';
@@ -30,6 +30,7 @@ import { environmentIcons, type PickedEnvironment } from './environment-icons';
 import { onTuning } from './tuning';
 import { installNative, isNativeApp, saveExport } from './native';
 import { Onboarding } from './onboarding';
+import { playStudioIntro } from './studio-intro';
 
 // Planner preview: the pause screen can switch the ambient environment. Not decided for release yet.
 // Morning and night are out of the app (2026-10-01); only off, street and rain remain.
@@ -172,8 +173,15 @@ if (import.meta.env.DEV) {
 createScene();
 // First-run guide over the board; it reads the scene through `view`, which "새로 쌓기" replaces.
 const onboarding = new Onboarding(play, () => view, () => {
-  pauseButton.disabled = board.atLimit || onboarding.introShowing; play.classList.toggle('onboarding-intro', onboarding.introShowing);
+  pauseButton.disabled = board.atLimit || onboarding.pauseLocked; play.classList.toggle('onboarding-intro', onboarding.pauseLocked);
 });
+// The guide's demo hole moves and drops the active block itself, past the input lock.
+onboarding.player = {
+  heights: () => Array.from({ length: WIDTH }, (_, column) => board.landing(column, SPAWN_ROTATION).y),
+  column: () => x, rotation: () => rotation,
+  aim: (column, nextRotation) => { if (view) aim(column, nextRotation); },
+  drop: () => drop(true),
+};
 const blocked = () => paused || menu.open || !view || view.busy || document.hidden || onboarding.blocking;
 function aim(column: number, nextRotation = rotation) {
   const before = { x, rotation };
@@ -182,17 +190,19 @@ function aim(column: number, nextRotation = rotation) {
   if (rotation !== before.rotation) onboarding.acted('rotate');
   else if (x !== before.x) onboarding.acted('move');
 }
-function drop() {
-  if (blocked()) return;
+/** `auto`: the onboarding's own drop, which the input lock does not hold back. Resolves once placed. */
+function drop(auto = false) {
+  if (auto ? paused || !view || view.busy : blocked()) return Promise.resolve(false);
   sound.unlock();
   const column = x, orientation = rotation;
   const landing = board.landingFrom(column, view.activeY, orientation);
-  view.drop(() => {
+  return new Promise<boolean>(placed => view.drop(() => {
     const added = board.place(column, landing.y, orientation); view.add(added, true, onboarding.placed(added)); sound.place();
     // A fresh piece always enters at the current camera's upper center.
     x = SPAWN_X; rotation = SPAWN_ROTATION; view.spawn();
     if (board.atLimit) pause();
-  });
+    placed(true);
+  }));
 }
 canvas.addEventListener('pointerdown', event => {
   if (blocked() || gesture || !event.isPrimary || event.button !== 0) return;
@@ -246,7 +256,7 @@ function updatePauseUI() {
   canvas.inert = paused;
   pauseButton.setAttribute('aria-pressed', String(paused));
   pauseButton.setAttribute('aria-label', paused ? '재개' : '일시정지');
-  pauseButton.disabled = board.atLimit || onboarding.introShowing;
+  pauseButton.disabled = board.atLimit || onboarding.pauseLocked;
   limitNote.hidden = !board.atLimit;
   pauseIcon.setPaused(paused);
 }
@@ -299,7 +309,16 @@ function resetSession() {
   limitNote.hidden = true; pauseButton.disabled = false;
   createScene(); onboarding.apply(); view?.pause(paused);
 }
-pauseButton.addEventListener('click', () => { sound.button(paused ? 'resume' : 'pause'); if (paused) resume(); else pause(); });
+// Pausing from the onboarding's red-button line: "새로 쌓기" breathes for about 3 seconds to show it.
+let restartCue = 0;
+function cueRestart(on: boolean) {
+  clearTimeout(restartCue); play.classList.toggle('onboarding-restart', on);
+  if (on) restartCue = window.setTimeout(() => play.classList.remove('onboarding-restart'), 3000);
+}
+pauseButton.addEventListener('click', () => {
+  sound.button(paused ? 'resume' : 'pause');
+  if (paused) { cueRestart(false); resume(); } else { cueRestart(onboarding.pauseTipShowing); pause(); }
+});
 restartButton.addEventListener('click', () => {
   if (!paused || menu.open || exporting) return;
   resetSession(); resume();
@@ -420,8 +439,13 @@ window.addEventListener('pageshow', event => {
   resetSession(); if (menu.open) menu.close('saved'); else resume();
 });
 if (board.atLimit) pause();
-void adminReady.then(() => onboarding.begin());
-pauseButton.disabled = board.atLimit || onboarding.introShowing; play.classList.toggle('onboarding-intro', onboarding.introShowing);
+// The studio intro plays over the board first. The board stays hidden under it if the onboarding will
+// start, and the onboarding begins while the intro is still clearing, so its first line comes straight
+// out of it.
+onboarding.apply();
+const handOver = new Promise<void>(resolve => playStudioIntro(play, resolve));
+void Promise.all([adminReady, handOver]).then(() => onboarding.begin());
+pauseButton.disabled = board.atLimit || onboarding.pauseLocked; play.classList.toggle('onboarding-intro', onboarding.pauseLocked);
 // App shell only: Android's back button opens the pause screen (and from there leaves the app), and
 // leaving the app holds play and sound the same way leaving the page does.
 void installNative({

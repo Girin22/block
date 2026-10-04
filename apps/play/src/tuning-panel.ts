@@ -56,7 +56,7 @@ export function mountTuningPanel(admin: HTMLElement) {
         ${TUNING_FIELDS.filter(field => field.group === group.key).map(row).join('')}
       </section>`).join('')}
       <section class="tuning-group"><h3>온보딩 문구</h3>
-        <p class="note">줄바꿈은 그대로 반영돼요. 빈 줄은 문단 간격, <code>_문구_</code>처럼 감싼 줄은 밑줄이에요. 바꾼 문구는 그 페이지가 다음에 나올 때 적용돼요. 시작 화면에서 탭하면 빈 줄로 나뉜 문단을 두 개씩 건너뛰고, 마지막 문단과 ‘시작하기’는 건너뛰지 않아요.</p>
+        <p class="note">줄바꿈은 그대로 반영돼요. 빈 줄은 문단 간격이에요. 바꾼 문구는 그 페이지가 다음에 나올 때 적용돼요. 시작 화면에서 탭하면 빈 줄로 나뉜 문단을 두 개씩 건너뛰고, 마지막 문단과 ‘시작하기’는 건너뛰지 않아요.</p>
         ${ONBOARDING_PAGES.map(({ key, label }) => `<div class="tuning-row text-row" data-text="${key}">
           <div class="row-head"><label for="text-${key}">${label}</label></div>
           <textarea id="text-${key}" rows="${Math.min(12, ONBOARDING_DEFAULTS[key].split('\n').length + 1)}"></textarea>

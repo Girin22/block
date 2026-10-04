@@ -25,6 +25,7 @@ main{display:flex;flex-wrap:wrap;gap:28px 24px;padding:24px 16px 60px;align-item
 figure{margin:0;display:flex;flex-direction:column;align-items:center;gap:8px}
 figcaption{text-align:center;font-size:13px}
 figcaption small{display:block;color:var(--sub)}
+figcaption .persona{display:block;color:var(--accent);font-size:12px;min-height:1.5em}
 .device{position:relative;background:var(--frame);border-radius:calc(var(--radius) * var(--scale) + 6px);padding:6px;box-shadow:0 8px 24px #0003}
 .screen{position:relative;overflow:hidden;border-radius:calc(var(--radius) * var(--scale));width:calc(var(--w) * var(--scale) * 1px);height:calc(var(--h) * var(--scale) * 1px)}
 .screen iframe{position:absolute;left:0;top:0;border:0;width:calc(var(--w) * 1px);height:calc(var(--h) * 1px);transform:scale(var(--scale));transform-origin:0 0;background:#211f1f}
@@ -49,7 +50,8 @@ figcaption small{display:block;color:var(--sub)}
   <fieldset><legend>크기</legend><button data-zoom="fit" aria-pressed="true">맞춤</button><button data-zoom="0.5" aria-pressed="false">50%</button><button data-zoom="1" aria-pressed="false">실제</button></fieldset>
   <fieldset><legend>표시</legend><label class="chip"><input type="checkbox" id="overlays" checked>카메라·상태 표시줄·홈 바</label><label class="chip"><input type="checkbox" id="bars">상태 표시줄 펼침</label><label class="chip"><input type="checkbox" id="admin">관리자 패널</label><label class="chip"><input type="checkbox" id="lock" checked>앱 세로 고정</label></fieldset>
   <button id="reload">모두 새로고침</button>
-  <p class="note">CSS 화면 크기 기준 근사치입니다. 앱은 상태 표시줄(안드로이드는 아래 내비게이션 바도)을 숨기므로 점선으로 자리만 표시합니다. ‘상태 표시줄 펼침’은 위에서 쓸어내렸을 때의 모습입니다. 카메라 구멍과 다이내믹 아일랜드는 항상 화면을 가립니다. 실제 안전 영역 값은 에뮬레이터나 실기기에서 확인하세요. 소리는 각 화면을 한 번 눌러야 시작합니다.</p>
+  <button id="persona">온보딩 자동 진행</button>
+  <p class="note">CSS 화면 크기 기준 근사치입니다. 앱은 상태 표시줄(안드로이드는 아래 내비게이션 바도)을 숨기므로 점선으로 자리만 표시합니다. ‘상태 표시줄 펼침’은 위에서 쓸어내렸을 때의 모습입니다. 카메라 구멍과 다이내믹 아일랜드는 항상 화면을 가립니다. ‘온보딩 자동 진행’은 온보딩 ‘봤음’ 표시를 지우고 모든 기기를 새로 연 뒤, 가상 사용자가 동시에 시작하기 → 탭 회전 → 옆 스와이프 → 아래 스와이프 → 빨간 버튼 안내가 나오면 일시정지 → 새로 쌓기까지 진행해 빈 판에서 멈춥니다(손짓은 화면에 표시만 하고 실제 입력은 키보드 조작으로 보냅니다). 실제 안전 영역 값은 에뮬레이터나 실기기에서 확인하세요. 소리는 각 화면을 한 번 눌러야 시작합니다.</p>
 </header>
 <main id="devices"></main>
 <script type="module">
@@ -73,7 +75,7 @@ const state = { landscape: false, zoom: 'fit', overlays: true, bars: false, admi
 const root = document.querySelector('#devices');
 
 function src() { return `/${state.admin ? '?admin' : ''}`; }
-function render() {
+function render(persona = false) {
   root.replaceChildren(...DEVICES.map(device => {
     const turned = state.landscape;
     const w = turned ? device.h : device.w, h = turned ? device.w : device.h;
@@ -84,7 +86,7 @@ function render() {
     box.style.setProperty('--radius', device.radius); box.style.setProperty('--scale', scale);
     const screen = document.createElement('div'); screen.className = 'screen';
     screen.style.setProperty('--w', w); screen.style.setProperty('--h', h);
-    const frame = document.createElement('iframe'); frame.src = src(); frame.title = device.name; frame.loading = 'lazy';
+    const frame = document.createElement('iframe'); frame.src = src(); frame.title = device.name; frame.loading = persona ? 'eager' : 'lazy';
     frame.allow = 'autoplay; clipboard-write';
     screen.append(frame);
     if (state.overlays) screen.append(...overlays(device, turned, scale));
@@ -95,7 +97,8 @@ function render() {
     }
     box.append(screen);
     const caption = document.createElement('figcaption');
-    caption.innerHTML = `${device.name}<small>${w}×${h} · ${turned ? '가로' : '세로'} · ${Math.round(scale * 100)}%</small>`;
+    caption.innerHTML = `${device.name}<small>${w}×${h} · ${turned ? '가로' : '세로'} · ${Math.round(scale * 100)}%</small><span class="persona"></span>`;
+    if (persona) frame.addEventListener('load', () => void runPersona(frame, caption.querySelector('.persona')), { once: true });
     figure.append(box, caption); return figure;
   }));
 }
@@ -130,7 +133,64 @@ document.querySelector('#overlays').onchange = e => { state.overlays = e.target.
 document.querySelector('#bars').onchange = e => { state.bars = e.target.checked; render(); };
 document.querySelector('#admin').onchange = e => { state.admin = e.target.checked; render(); };
 document.querySelector('#lock').onchange = e => { state.lock = e.target.checked; render(); };
-document.querySelector('#reload').onclick = render;
+document.querySelector('#reload').onclick = () => render();
+// Onboarding persona: forget the two "seen" marks (every frame shares this page's storage), reopen every
+// device at once, and walk each through the onboarding like a first-time player up to the fresh board.
+document.querySelector('#persona').onclick = () => {
+  try { localStorage.removeItem('bodobodo.onboarded'); localStorage.removeItem('bodobodo.holeTip'); } catch { /* Storage blocked. */ }
+  render(true);
+};
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+async function runPersona(frame, status) {
+  const win = frame.contentWindow, doc = win.document;
+  const say = text => { status.textContent = text; };
+  const until = async (test, seconds = 60) => {
+    const end = Date.now() + seconds * 1000;
+    while (Date.now() < end) { if (!frame.isConnected) throw new Error('gone'); if (test()) return; await sleep(150); }
+    throw new Error('timeout');
+  };
+  // A soft dot where the persona's finger is; the real input is sent as the game's test keys.
+  const finger = doc.createElement('div');
+  Object.assign(finger.style, { position: 'fixed', zIndex: 99, width: '34px', height: '34px', margin: '-17px 0 0 -17px', borderRadius: '50%', background: 'radial-gradient(circle,#fff9 0 45%,#fff0 70%)', pointerEvents: 'none', opacity: 0 });
+  doc.body.append(finger);
+  const gesture = async (from, to = from, ms = 260) => {
+    const frames = [{ left: `${from[0]}px`, top: `${from[1]}px`, opacity: 0, transform: 'scale(1.3)' }, { left: `${from[0]}px`, top: `${from[1]}px`, opacity: 1, transform: 'scale(.9)', offset: .3 },
+      { left: `${to[0]}px`, top: `${to[1]}px`, opacity: 1, transform: 'scale(.9)', offset: .8 }, { left: `${to[0]}px`, top: `${to[1]}px`, opacity: 0, transform: 'scale(1.2)' }];
+    await finger.animate(frames, { duration: ms + 500, easing: 'ease-in-out' }).finished;
+  };
+  const centre = element => { const r = element.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; };
+  const canvas = () => doc.querySelector('#playfield');
+  const key = code => canvas().dispatchEvent(new win.KeyboardEvent('keydown', { code, key: code === 'Space' ? ' ' : code, bubbles: true }));
+  const hint = name => { const h = doc.querySelector('#onboarding-hint'); return h?.dataset.gesture === name && h.classList.contains('show'); };
+  // The step's gesture opens once its round hint is fully shown; a person also takes a moment to react.
+  const react = () => sleep(1300 + Math.random() * 500);
+  try {
+    say('시작 화면 읽는 중');
+    // The intro starts once the page's admin values have loaded; without it, this device has seen it.
+    // The studio intro plays first (about 4.6 s); the onboarding starts once it has gone.
+    say('스튜디오 인트로'); await until(() => doc.querySelector('#playfield') && !doc.querySelector('#studio-intro')); await sleep(1500);
+    if (!doc.querySelector('#onboarding.intro')) { say('온보딩을 이미 봤어요'); return; }
+    await until(() => doc.querySelector('#onboarding-start.ready'));
+    await sleep(700); const start = doc.querySelector('#onboarding-start');
+    await gesture(centre(start)); start.click();
+    say('탭 회전'); await until(() => hint('rotate')); await react();
+    const [w, h] = [win.innerWidth, win.innerHeight];
+    await gesture([w / 2, h * .62]); key('ArrowUp');
+    say('옆 스와이프'); await until(() => hint('move')); await react();
+    await gesture([w / 2, h * .7], [w * .25, h * .7], 420); key('ArrowLeft');
+    say('아래 스와이프'); await until(() => hint('place')); await react();
+    await gesture([w / 2, h * .45], [w / 2, h * .72], 420); key('Space');
+    say('빨간 버튼 안내'); await until(() => hint('restart'), 90); await react();
+    const pause = doc.querySelector('#pause');
+    await gesture(centre(pause)); pause.click();
+    say('새로 쌓기'); await until(() => doc.querySelector('.play.is-paused')); await sleep(1600);
+    const restart = doc.querySelector('#restart');
+    await gesture(centre(restart)); restart.click();
+    await until(() => !doc.querySelector('.play.is-paused'));
+    say('완료: 빈 판에서 쌓기 직전');
+  } catch (error) { if (frame.isConnected) say(error.message === 'timeout' ? '멈춤: 다음 단계가 나오지 않았어요' : '중단됨'); }
+  finally { finger.remove(); }
+}
 render();
 </script>
 </body>

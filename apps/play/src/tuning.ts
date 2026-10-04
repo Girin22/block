@@ -30,13 +30,17 @@ export interface Tuning {
   gestureHint: number;
   /** Onboarding text size, as a multiple of the designed size (2% of the screen height, 16–24 px). */
   onboardingSize: number;
+  /** On a phone (screen under 600 px wide), the onboarding text is this share of its tablet size. */
+  onboardingPhoneScale: number;
   /** How the intro appears: 1 sweeps the whole text into view from the top down, 0 writes it character by character. */
   introSweep: number;
     /** Sweep: seconds for the whole intro to be uncovered from top to bottom. */
   introSweepSeconds: number;
+  /** Sweep: seconds for any later (short) onboarding text to be uncovered in one soft pass. */
+  stepSweepSeconds: number;
 }
 
-export const TUNING_DEFAULTS: Readonly<Tuning> = { rainSpeed: 1, rippleSize: 1, pauseGap: 1, fallSpeed: 1.1, fillSpeed: 1, typingSpeed: 14, inkSeconds: 0.6, pauseScale: 1, rhythmJitter: 1, stepFadeSeconds: 1.4, stepReadySeconds: 0.5, gestureHint: 1, onboardingSize: 1.5, introSweep: 1, introSweepSeconds: 6 };
+export const TUNING_DEFAULTS: Readonly<Tuning> = { rainSpeed: 1, rippleSize: 1, pauseGap: 1, fallSpeed: 1.1, fillSpeed: 1, typingSpeed: 14, inkSeconds: 0.6, pauseScale: 1, rhythmJitter: 1, stepFadeSeconds: 1.4, stepReadySeconds: 0.5, gestureHint: 1, onboardingSize: 1.5, onboardingPhoneScale: 0.8, introSweep: 1, introSweepSeconds: 6, stepSweepSeconds: 1.4 };
 
 /** A `choices` field is a switch between labelled values instead of a gauge. */
 export type TuningGroup = 'weather' | 'screen' | 'block' | 'onboarding';
@@ -59,8 +63,10 @@ export const TUNING_FIELDS: readonly TuningField[] = [
   { key: 'stepReadySeconds', group: 'onboarding', label: '튜토리얼 조작 대기', min: 0, max: 3, step: 0.1, unit: '초', hint: v => `문구가 다 써진 뒤 ${v.toFixed(1)}초가 지나야 다음 조작을 받음 (그 전에는 블록도 멈춤)` },
   { key: 'gestureHint', group: 'onboarding', label: '조작 안내 손짓', min: 0, max: 1, step: 1, unit: '', hint: v => v ? '조작할 수 있게 되면 블록 위에 탭·좌우·아래 손짓이 은은하게 반복됨' : '손짓 없이 문구만 보여 줌', choices: [{ value: 1, label: '켜기' }, { value: 0, label: '끄기' }] },
   { key: 'onboardingSize', group: 'onboarding', label: '온보딩 글씨 크기', min: 0.6, max: 2.5, step: 0.05, unit: '배', hint: v => `시안 크기의 ${Math.round(v * 100)}% (화면 높이 900px 기준 약 ${Math.round(18 * v)}px)` },
-  { key: 'introSweep', group: 'onboarding', label: '시작 화면 문구 표시 방식', min: 0, max: 1, step: 1, unit: '', hint: v => v ? '문구 전체가 위에서 아래로 쓸어내리듯 드러남' : '한 글자씩 써짐 (글씨 속도 적용)', choices: [{ value: 1, label: '전체 쓸어내리기' }, { value: 0, label: '한 글자씩 쓰기' }] },
+  { key: 'onboardingPhoneScale', group: 'onboarding', label: '스마트폰 글씨 비율', min: 0.5, max: 1, step: 0.05, unit: '배', hint: v => `너비 600px 미만(스마트폰)에서는 온보딩 글씨를 태블릿의 ${Math.round(v * 100)}%로 줄임` },
+  { key: 'introSweep', group: 'onboarding', label: '온보딩 문구 표시 방식', min: 0, max: 1, step: 1, unit: '', hint: v => v ? '모든 문구가 위에서 아래로 쓸어내리듯 드러남' : '모든 문구가 한 글자씩 써짐 (글씨 속도 적용)', choices: [{ value: 1, label: '전체 쓸어내리기' }, { value: 0, label: '한 글자씩 쓰기' }] },
   { key: 'introSweepSeconds', group: 'onboarding', label: '쓸어내리기 시간', min: 0.5, max: 8, step: 0.1, unit: '초', hint: v => `시작 화면 문구 전체가 ${v.toFixed(1)}초 동안 위에서 아래로 드러남` },
+  { key: 'stepSweepSeconds', group: 'onboarding', label: '이후 문구 쓸어내리기 시간', min: 0.3, max: 4, step: 0.1, unit: '초', hint: v => `회전·이동·쌓기·빨간 버튼 문구가 ${v.toFixed(1)}초 동안 한 번에 부드럽게 드러남` },
 ];
 
 export const tuning: Tuning = { ...TUNING_DEFAULTS };
