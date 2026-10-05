@@ -6,7 +6,8 @@
 <title>기기 미리보기</title>
 <!-- Development only: `npm run dev` serves it at /devices.html. The production build has a single
      entry (index.html), so this page never ships. It shows layout per screen size; performance, sound
-     policy and real safe areas still need an emulator or a device. -->
+     policy still need an emulator or a device. Each frame is given its device's safe area (notch, Dynamic
+     Island, camera hole, home indicator) through the --safe-area-inset-* variables the game reads. -->
 <style>
 :root{--bg:#f3f2ee;--panel:#fff;--ink:#22231f;--sub:#696b63;--line:#dcdad2;--accent:#3c7a5c;--frame:#111}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#141513;--panel:#1e201c;--ink:#e9e8e2;--sub:#a1a49a;--line:#34372f;--accent:#7cc39d;--frame:#000}}
@@ -88,6 +89,8 @@ function render(persona = false) {
     screen.style.setProperty('--w', w); screen.style.setProperty('--h', h);
     const frame = document.createElement('iframe'); frame.src = src(); frame.title = device.name; frame.loading = persona ? 'eager' : 'lazy';
     frame.allow = 'autoplay; clipboard-write';
+    // The frame is not a real phone, so it would report no safe area at all; hand it this device's.
+    frame.addEventListener('load', () => applyInsets(frame, device, turned));
     screen.append(frame);
     if (state.overlays) screen.append(...overlays(device, turned, scale));
     if (turned && state.lock) {
@@ -101,6 +104,25 @@ function render(persona = false) {
     if (persona) frame.addEventListener('load', () => void runPersona(frame, caption.querySelector('.persona')), { once: true });
     figure.append(box, caption); return figure;
   }));
+}
+/**
+ * The safe area this device gives the app, in CSS px. With the bars hidden (as in the app): the iPhone's
+ * Dynamic Island and home indicator stay; a Galaxy punch-hole camera keeps the status bar's height at
+ * the top; tablets, the iPhone SE and under-display cameras give nothing. With the bars shown, the whole
+ * status bar and navigation area. Turned, the top edge becomes the left one.
+ */
+function insets(device, turned) {
+  const island = device.top.kind === 'island', hole = device.camera && !device.camera.under;
+  const top = state.bars || island || hole ? device.top.size : 0;
+  const bottom = device.os === 'ios' || state.bars ? device.bottom : 0;
+  return turned ? { top: 0, right: 0, bottom: device.os === 'ios' && device.bottom ? 21 : 0, left: top } : { top, right: 0, bottom, left: 0 };
+}
+/** Sets the variables the game reads first (the same ones Capacitor sets on Android). */
+function applyInsets(frame, device, turned) {
+  try {
+    const style = frame.contentDocument.documentElement.style;
+    for (const [side, value] of Object.entries(insets(device, turned))) style.setProperty(`--safe-area-inset-${side}`, `${value}px`);
+  } catch { /* A frame from another origin cannot be reached. */ }
 }
 function overlays(device, turned, scale) {
   const list = [], px = v => `${v * scale}px`;

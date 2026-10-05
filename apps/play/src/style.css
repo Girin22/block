@@ -2,6 +2,8 @@
 @font-face{font-family:'Jost';src:url('../../../assets/fonts/Jost/Jost-VariableFont_wght.ttf') format('truetype');font-weight:100 900;font-display:block;unicode-range:U+0041-005A,U+0061-007A,U+00C0-024F}
 /* KS X 1001 subset (2,350 syllables + ASCII) of the full 5.9 MB face, rebuilt with scripts/subset-font.py. */
 @font-face{font-family:'GangBuJang';src:url('../../../assets/fonts/GangBuJang-ksx1001.woff2') format('woff2');font-display:block}
+/* Safe areas: Capacitor's Android shell sets --safe-area-inset-* because older Android WebViews report
+   env() as 0 (camera holes); the device preview sets them too. Elsewhere the standard env() applies. */
 :root{font-family:'Jost','GangBuJang',sans-serif;background:#211f1f;color:#345846;font-synthesis:none;-webkit-font-smoothing:antialiased}
 *{box-sizing:border-box}
 html,body,#app{width:100%;height:100%;margin:0;overflow:hidden;overscroll-behavior:none}
@@ -13,7 +15,7 @@ button:focus-visible{outline:2px solid #a7c897;outline-offset:4px}
 #playfield{display:block;width:100%;height:100%;touch-action:none;user-select:none;outline:none}
 #weather{position:absolute;inset:0;z-index:1;width:100%;height:100%;pointer-events:none}
 /* Admin tools sit outside the game column; on a phone there is no outside, so they tuck into a corner. */
-#admin{position:fixed;z-index:10;left:calc(16px + env(safe-area-inset-left));bottom:calc(16px + env(safe-area-inset-bottom));display:flex;flex-direction:column;align-items:flex-start;gap:10px;color:#8f9a88;font:15px/1.4 -apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;letter-spacing:1px}
+#admin{position:fixed;z-index:10;left:calc(16px + var(--safe-area-inset-left,env(safe-area-inset-left,0px)));bottom:calc(16px + var(--safe-area-inset-bottom,env(safe-area-inset-bottom,0px)));display:flex;flex-direction:column;align-items:flex-start;gap:10px;color:#8f9a88;font:15px/1.4 -apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;letter-spacing:1px}
 #admin .device{margin:0;font-size:16px;letter-spacing:0;line-height:1.5;color:#b9c4b0}
 #admin .device b{color:#f0c27b;font-weight:600}
 #admin button{min-height:52px;padding:12px 22px;border-radius:14px;border:1px solid #6a6565;background:#2c2929cc;color:#faf9f6;font-size:18px;letter-spacing:0;touch-action:manipulation;backdrop-filter:blur(6px)}
@@ -21,7 +23,7 @@ button:focus-visible{outline:2px solid #a7c897;outline-offset:4px}
 /* The planner's tuning sheet. A popup on phones; on a PC it is docked in the middle of the space to the
    right of the game column, with even margins all round. */
 #admin.has-tuning>span{display:none}
-#tuning{--accent:#7cc39d;--line:#3b3737;--muted:#a8a29a;position:fixed;z-index:11;left:50%;bottom:calc(8px + env(safe-area-inset-bottom));transform:translateX(-50%);width:min(440px,calc(100vw - 16px));max-height:62vh;max-height:62dvh;display:flex;flex-direction:column;border-radius:20px;background:#1c1a1af2;border:1px solid #403b3b;box-shadow:0 18px 50px #0008;color:#ece9e2;font:14px/1.45 -apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;letter-spacing:0;overflow:hidden;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+#tuning{--accent:#7cc39d;--line:#3b3737;--muted:#a8a29a;position:fixed;z-index:11;left:50%;bottom:calc(8px + var(--safe-area-inset-bottom,env(safe-area-inset-bottom,0px)));transform:translateX(-50%);width:min(440px,calc(100vw - 16px));max-height:62vh;max-height:62dvh;display:flex;flex-direction:column;border-radius:20px;background:#1c1a1af2;border:1px solid #403b3b;box-shadow:0 18px 50px #0008;color:#ece9e2;font:14px/1.45 -apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;letter-spacing:0;overflow:hidden;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
 #tuning:not(.open){display:none}
 @media(min-width:1280px){
   #tuning,#tuning:not(.open){
@@ -65,7 +67,7 @@ button:focus-visible{outline:2px solid #a7c897;outline-offset:4px}
 #tuning button.primary:hover{background:#8fd0ad}
 .tuning-status{margin:0 0 8px;color:#cfd6c8;font-size:12px;white-space:pre-wrap;max-height:30vh;overflow:auto}
 .tuning-status:empty{display:none}
-#pause{position:absolute;z-index:3;top:calc(14px + env(safe-area-inset-top));right:calc(16px + env(safe-area-inset-right));width:48px;height:48px;display:grid;place-items:center;padding:4px;background:transparent url('../../../assets/images/stop.png') center/40px 40px no-repeat;border-radius:50%;touch-action:manipulation}
+#pause{position:absolute;z-index:3;top:calc(14px + var(--safe-area-inset-top,env(safe-area-inset-top,0px)));right:calc(16px + var(--safe-area-inset-right,env(safe-area-inset-right,0px)));width:48px;height:48px;display:grid;place-items:center;padding:4px;background:transparent url('../../../assets/images/stop.png') center/40px 40px no-repeat;border-radius:50%;touch-action:manipulation}
 #pause[aria-pressed=true]{background-image:url('../../../assets/images/cone.png')}
 #pause.icon-ready{background-image:none}
 #pause:disabled{cursor:default}
@@ -83,7 +85,7 @@ button:focus-visible{outline:2px solid #a7c897;outline-offset:4px}
    The first row is the environment picker (a planner preview), centred on the pause button's line:
    44px tall from 16px, so both centres sit 38px below the safe area. */
 .pause-content{--text-size:clamp(17px,3.3vh,28px);--text-size:clamp(17px,3.3dvh,28px);--gap:clamp(14px,3.8vh,34px);--gap:clamp(14px,3.8dvh,34px);--icon:clamp(30px,6.5vh,58px);--icon:clamp(30px,6.5dvh,58px);--small:clamp(20px,4.3vh,38px);--small:clamp(20px,4.3dvh,38px);--ink:calc(var(--text-size) * .67);--digits:calc(var(--text-size) * .51);
-  position:absolute;top:calc(16px + env(safe-area-inset-top));left:50%;width:min(240px,70%);transform:translateX(-50%);display:grid;grid-template-rows:44px var(--ink) var(--icon) var(--digits) var(--small) var(--digits) var(--ink);row-gap:calc(var(--gap) * var(--gap-scale, 1));justify-items:center;align-items:center}
+  position:absolute;top:calc(16px + var(--safe-area-inset-top,env(safe-area-inset-top,0px)));left:50%;width:min(240px,70%);transform:translateX(-50%);display:grid;grid-template-rows:44px var(--ink) var(--icon) var(--digits) var(--small) var(--digits) var(--ink);row-gap:calc(var(--gap) * var(--gap-scale, 1));justify-items:center;align-items:center}
 .stat-text{display:block;position:relative;top:-.08em;font-size:var(--text-size);line-height:1;white-space:nowrap}
 /* The picker row costs short phones about one gap, so their rows sit a little closer to keep the
    export label above the middle of the screen. */
@@ -271,7 +273,7 @@ dialog.receipt-open{width:min(420px,calc(100vw - 24px));max-height:90vh;max-heig
 
 /* Red button: the tap's two halos bloom slowly behind the pause button (no fingertip over it). Centred on
    the button: 14px + 24px down, 16px + 24px in from the right. */
-#onboarding-hint[data-gesture=restart]{--c:44px;top:calc(38px + env(safe-area-inset-top));left:calc(100% - 40px - env(safe-area-inset-right))}
+#onboarding-hint[data-gesture=restart]{--c:44px;top:calc(38px + var(--safe-area-inset-top,env(safe-area-inset-top,0px)));left:calc(100% - 40px - var(--safe-area-inset-right,env(safe-area-inset-right,0px)))}
 #onboarding-hint[data-gesture=restart] .finger{display:none}
 #onboarding-hint[data-gesture=restart] .ring{display:block;animation:hint-ring 2.8s cubic-bezier(.2,.6,.3,1) infinite}
 #onboarding-hint[data-gesture=restart] .ring.late{animation-delay:.3s}
