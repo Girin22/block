@@ -34,3 +34,5 @@ key.properties
 # Firebase config for the apps (kept out of the public repo).
 google-services.json
 GoogleService-Info.plist
+# Private business paperwork notes (D-U-N-S etc.), kept local only.
+docs/duns-update-guide.html
