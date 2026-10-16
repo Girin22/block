@@ -6,6 +6,11 @@
    env() as 0 (camera holes); the device preview sets them too. Elsewhere the standard env() applies. */
 :root{font-family:'Jost','GangBuJang',sans-serif;background:#211f1f;color:#345846;font-synthesis:none;-webkit-font-smoothing:antialiased}
 *{box-sizing:border-box}
+/* iOS WebView only honours the prefixed forms: without them a swipe sometimes selects the page (blue tint)
+   or lifts the canvas as a draggable picture. Only the receipt image below opts back in, for saving. */
+html{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
+img,canvas{-webkit-user-drag:none}
+input,textarea{-webkit-user-select:text;user-select:text}
 html,body,#app{width:100%;height:100%;margin:0;overflow:hidden;overscroll-behavior:none}
 button{font:inherit;color:inherit;border:0;cursor:pointer;-webkit-tap-highlight-color:transparent}
 button:focus-visible{outline:2px solid #a7c897;outline-offset:4px}
@@ -155,7 +160,7 @@ dialog button{display:block;width:100%;padding:20px 10px;border-radius:13px;back
 /* Motion is the product: the system's reduce-motion setting changes nothing here on purpose. The admin
    panel only reports it, so a tester's device can be told apart from a real defect. */
 #receipt-status:empty{display:none}#receipt-panel .receipt-header{justify-content:flex-end}
-#receipt-image img{display:block;width:100%;height:auto;-webkit-touch-callout:default;user-select:auto}#receipt-save:disabled{opacity:.55;cursor:wait}
+#receipt-image img{display:block;width:100%;height:auto;-webkit-touch-callout:default;-webkit-user-select:auto;user-select:auto}#receipt-save:disabled{opacity:.55;cursor:wait}
 
 .receipt-open #receipt-image{filter:none}
 

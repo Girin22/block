@@ -1,5 +1,5 @@
 # iOS builds on Codemagic's cloud Mac, since there is no Mac here (docs/app-release-plan.html, section 11).
-# Start a build by hand in Codemagic; it signs with the App Store Connect API key and uploads to TestFlight.
+# Start a build by hand in Codemagic; it signs with the App Store Connect API key and uploads the build to App Store Connect.
 # Setup once: Codemagic > Team settings > Integrations > Developer Portal > add the App Store Connect API key
 # under the name `bodobodo` (the integrations entry below must match it exactly).
 workflows:
@@ -33,4 +33,5 @@ workflows:
     publishing:
       app_store_connect:
         auth: integration
-        submit_to_testflight: true
+        # Only uploads. Internal testers get each build without review; App Store review is submitted by hand.
+        submit_to_testflight: false
