@@ -5,6 +5,7 @@ import { PlayScene } from './scene';
 import { INTRO_GAIN, PlaySound } from './sound';
 import { isDownSwipe, swipeAxis, type SwipeAxis } from './input';
 import { downloadFile, Receipt, receiptPhoto } from './export';
+import { showSavedToast } from './saved-toast';
 import { mountReceiptPreview } from './receipt-preview';
 import { PauseIcon } from './pause-icon';
 import { PlayTimer } from './play-timer';
@@ -352,11 +353,12 @@ exportButton.addEventListener('click', async () => {
         .catch(() => receipt.svgFile());
     } else file = await receipt.svgFile();
     // In the app there is no download folder: a PNG goes to the photo library, an SVG to the share sheet.
+    // A saved photo shows the saved card (saved-toast.ts); only the rare SVG says where it went in words.
     if (isNativeApp) {
       const saved = await saveExport(file);
-      // A saved photo needs no message (2026-10-03); only the rare SVG says where it went.
-      exportStatus.textContent = saved === 'shared' ? '파일로 내보냈어요. 사진이 아닌 파일 앱에서 확인해 주세요.' : '';
-    } else downloadFile(file);
+      if (saved.result === 'photo') showSavedToast(play, receipt, '사진에 저장했어요', saved.open);
+      exportStatus.textContent = saved.result === 'shared' ? '파일로 내보냈어요. 사진이 아닌 파일 앱에서 확인해 주세요.' : '';
+    } else { downloadFile(file); showSavedToast(play, receipt, '내려받았어요'); }
   } catch {
     exportStatus.textContent = '저장하지 못했어요. 다시 시도해 주세요.';
   } finally { exporting = false; exportButton.disabled = false; exportButton.textContent = '내보내기'; }

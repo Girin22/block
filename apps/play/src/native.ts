@@ -71,22 +71,23 @@ async function albumIdentifier() {
 }
 
 /**
- * Saves an exported pavement where a player looks for it: a PNG goes into the photo library, and on
- * Android the gallery then opens on it, so the player sees it saved (2026-10-04; back returns to the
- * game). An SVG (too large for a photo) goes to the share sheet so it can be kept in Files. Returns what happened,
- * for the status line. Throws when saving failed; a cancelled share returns 'cancelled'.
+ * Saves an exported pavement where a player looks for it: a PNG goes into the photo library, and `open`
+ * then shows it in the photos app, for the saved card's tap (2026-10-16: the game stays on screen; on
+ * Android the gallery used to open by itself). An SVG (too large for a photo) goes to the share sheet so
+ * it can be kept in Files. Throws when saving failed; a cancelled share returns 'cancelled'.
  */
-export async function saveExport(file: File): Promise<'photo' | 'shared' | 'cancelled'> {
+export async function saveExport(file: File): Promise<{ result: 'photo' | 'shared' | 'cancelled'; open?: () => void }> {
   const uri = await cacheFile(file);
   if (file.type === 'image/png') {
     const { Media } = await import('@capacitor-community/media');
     const { filePath } = await Media.savePhoto({ path: uri, albumIdentifier: await albumIdentifier(), fileName: file.name.replace(/\.png$/, '') });
-    // Already saved: a gallery that cannot open only means the picture is not shown.
-    if (filePath && Capacitor.getPlatform() === 'android') await Gallery.open({ path: filePath }).catch(() => {});
-    return 'photo';
+    // Already saved: a photos app that cannot open only means the picture is not shown.
+    if (Capacitor.getPlatform() === 'android') return { result: 'photo', open: filePath ? () => void Gallery.open({ path: filePath }).catch(() => {}) : undefined };
+    // iOS's Photos answers this address; the app shell hands addresses outside the app to the system.
+    return { result: 'photo', open: () => { location.href = 'photos-redirect://'; } };
   }
   const { Share } = await import('@capacitor/share');
   try { await Share.share({ title: file.name, files: [uri] }); }
-  catch (error) { if (/cancel/i.test(String(error))) return 'cancelled'; throw error; }
-  return 'shared';
+  catch (error) { if (/cancel/i.test(String(error))) return { result: 'cancelled' }; throw error; }
+  return { result: 'shared' };
 }
