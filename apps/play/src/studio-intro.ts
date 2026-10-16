@@ -38,8 +38,13 @@ const LEAVE_AT = FILL_AT + Math.max(FILL, CREDIT) + HOLD;
 /** Seconds into a drop at which a paver touches down (style.css studio-drop, 76%). */
 const TOUCH_DOWN = 0.76;
 
-/** `onLand` sounds each touch-down (the white filler with `white`); a skip silences the ones still to come. */
-export function playStudioIntro(parent: HTMLElement, handOver: () => void, onLand?: (white: boolean) => void) {
+/**
+ * `onLand` is told of each touch-down (the white filler with `white`) as soon as that paver starts to move,
+ * with the seconds left until it lands, so the hit can be set on the audio clock ahead of time. Timers
+ * fired from the busy first seconds of launch ran late, and so did the sound (2026-10-16). A skip stops
+ * the ones still to come.
+ */
+export function playStudioIntro(parent: HTMLElement, handOver: () => void, onLand?: (white: boolean, inSeconds: number) => void) {
   const root = document.createElement('div'); root.id = 'studio-intro'; root.setAttribute('aria-label', STUDIO_CREDIT.join(' '));
   // The pinwheel spans 38% of the screen's width (designer's frame), so 3 × SPREAD + bleed cells make that.
   const cell = Math.min(parent.clientWidth * 0.38, parent.clientHeight * 0.175) / (3 * SPREAD + TILE_BLEED);
@@ -61,13 +66,16 @@ export function playStudioIntro(parent: HTMLElement, handOver: () => void, onLan
   credit.innerHTML = STUDIO_CREDIT.map(line => `<span>${line}</span>`).join('');
   root.append(mark, credit); parent.append(root);
   let timer = 0;
-  const landings = onLand ? [
-    ...PIECES.map(({ at }) => window.setTimeout(() => onLand(false), (at + DROP * TOUCH_DOWN) * 1000)),
-    window.setTimeout(() => onLand(true), (FILL_AT + FILL) * 1000),
-  ] : [];
+  // animationstart comes when each paver's delay is over, from the same clock that draws it.
+  mark.addEventListener('animationstart', event => {
+    const target = event.target as HTMLElement;
+    if (!onLand || root.classList.contains('leaving')) return;
+    if (target.classList.contains('drop')) onLand(false, DROP * TOUCH_DOWN);
+    else if (target.classList.contains('fill')) onLand(true, FILL);
+  });
   // A skipping tap hands over twice as fast; the scale stretches every part of the hand-over alike.
   const leave = (scale: number) => {
-    clearTimeout(timer); landings.forEach(clearTimeout); root.style.setProperty('--leave', String(scale)); root.classList.add('leaving');
+    clearTimeout(timer); root.style.setProperty('--leave', String(scale)); root.classList.add('leaving');
     window.setTimeout(handOver, HAND_OVER * scale * 1000);
     window.setTimeout(() => root.remove(), LEAVE * scale * 1000);
   };

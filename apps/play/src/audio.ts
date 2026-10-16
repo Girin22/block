@@ -27,8 +27,8 @@ function noiseBuffer(ctx: BaseAudioContext) {
 }
 
 /** variation is -1..1 and picks where in the allowed pitch drift this hit falls. */
-export function synthesize(ctx: BaseAudioContext, destination: AudioNode, white: boolean, variation = 0) {
-  const voice = clackVoice(white, variation), t0 = ctx.currentTime + 0.005;
+export function synthesize(ctx: BaseAudioContext, destination: AudioNode, white: boolean, variation = 0, at = ctx.currentTime) {
+  const voice = clackVoice(white, variation), t0 = Math.max(at, ctx.currentTime) + 0.005;
   const bus = ctx.createGain(); bus.gain.value = voice.gain; bus.connect(destination);
   let pending = 0;
   const finish = (source: AudioScheduledSourceNode, nodes: AudioNode[]) => {

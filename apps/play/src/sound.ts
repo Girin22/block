@@ -10,6 +10,8 @@ export const BUTTON_GAIN = 1;
 export type ButtonSound = 'pause' | 'resume';
 /** The studio intro's pavers land a little under the game's own (about -3 dB), as a prelude. */
 export const INTRO_GAIN = 0.7;
+/** Seconds a hit set ahead sounds before the drawn contact: the eye reads a landing a touch early. */
+export const HIT_LEAD = 0.02;
 /** The stone drag that opens a long run of white fillers. */
 export const DRAG_GAIN = 0.8;
 
@@ -74,21 +76,26 @@ export class PlaySound {
       }
     } catch { /* Silent play remains available. */ }
   }
-  /** `level` scales the hit, for the studio intro (INTRO_GAIN). */
-  place(white = false, level = 1) {
+  /**
+   * `level` scales the hit and `inSeconds` sets it ahead on the audio clock, both for the studio intro
+   * (INTRO_GAIN). A hit set ahead comes out early by the device's output latency, so it is heard on time.
+   */
+  place(white = false, level = 1, inSeconds = 0) {
     this.unlock(); if (!this.context || !this.output) return;
-    const variation = Math.random() * 2 - 1;
+    const variation = Math.random() * 2 - 1, context = this.context;
+    const latency = inSeconds > 0 ? (context.outputLatency || context.baseLatency || 0) + HIT_LEAD : 0;
+    const at = context.currentTime + Math.max(0, inSeconds - latency);
     // Until the recordings have loaded (only the first moments of a session), the synthesized hit stands in.
     if (!this.decodedHits.length) {
-      const trim = this.context.createGain(); trim.gain.value = level; trim.connect(this.output);
-      synthesize(this.context, trim, white, variation); window.setTimeout(() => trim.disconnect(), 2000); return;
+      const trim = context.createGain(); trim.gain.value = level; trim.connect(this.output);
+      synthesize(context, trim, white, variation, at); window.setTimeout(() => trim.disconnect(), (at - context.currentTime + 2) * 1000); return;
     }
     this.lastHit = nextTrack(this.decodedHits.length, this.lastHit);
     const voice = hitVoice(white, variation), source = this.context.createBufferSource(), gain = this.context.createGain();
     source.buffer = this.decodedHits[this.lastHit]; source.playbackRate.value = voice.rate; gain.gain.value = voice.gain * level;
     source.connect(gain).connect(this.output);
     source.onended = () => { source.disconnect(); gain.disconnect(); };
-    source.start();
+    source.start(at);
   }
   /** A long run of white fillers begins: one drag of stone over stone. */
   drag() {

@@ -458,7 +458,7 @@ onboarding.apply();
 // The intro's landings sound only where audio may start on its own (the app shells). A browser holds
 // its audio until the first tap, and held landings would then all sound at once.
 sound.unlock();
-const handOver = new Promise<void>(resolve => playStudioIntro(play, resolve, white => { if (sound.running) sound.place(white, INTRO_GAIN); }));
+const handOver = new Promise<void>(resolve => playStudioIntro(play, resolve, (white, inSeconds) => { if (sound.running) sound.place(white, INTRO_GAIN, inSeconds); }));
 void Promise.all([adminReady, handOver]).then(() => { if (onboarding.pauseLocked) allowAmbience(); onboarding.begin(); });
 pauseButton.disabled = board.atLimit || onboarding.pauseLocked; play.classList.toggle('onboarding-intro', onboarding.pauseLocked);
 // App shell only: Android's back button opens the pause screen (and from there leaves the app), and
