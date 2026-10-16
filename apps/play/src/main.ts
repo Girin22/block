@@ -2,7 +2,7 @@
 import './style.css';
 import { formatMeters, Pavement, SPAWN_ROTATION, SPAWN_X, WIDTH, type Rotation } from '../../../packages/play-core';
 import { PlayScene } from './scene';
-import { PlaySound } from './sound';
+import { INTRO_GAIN, PlaySound } from './sound';
 import { isDownSwipe, swipeAxis, type SwipeAxis } from './input';
 import { downloadFile, Receipt, receiptPhoto } from './export';
 import { mountReceiptPreview } from './receipt-preview';
@@ -123,9 +123,18 @@ const soundscape = new Soundscape({
 });
 /**
  * Ambience keeps playing on the pause screen (the picker's X turns it off); it only holds while the page
- * is hidden. Browsers need a gesture to start it.
+ * is hidden. Browsers need a gesture to start it. It stays silent through the studio intro, whose own
+ * sound is the pavers landing, and first swells in slowly when the tutorial opens or, once that has been
+ * seen, when the first block is placed (allowAmbience).
  */
+let ambienceAllowed = false;
+function allowAmbience() {
+  if (ambienceAllowed) return;
+  ambienceAllowed = true;
+  if (!menu.open && !document.hidden) playAmbience();
+}
 function playAmbience() {
+  if (!ambienceAllowed) return;
   soundscape.play();
   if (soundscape.environment === 'rain') rainAmbience.unlock();
   rainAmbience.setPaused(false);
@@ -140,10 +149,13 @@ for (const type of ['pointerdown', 'pointerup', 'touchend', 'click', 'keydown'] 
     playAmbience();
   }, { capture: true });
 }
-// The ambience should already be there when the page opens. Browsers that allow autoplay (desktop
-// Chrome on a site visited often) start it now; the rest refuse until the first tap, which the
-// listeners above retry. No browser allows sound before any interaction on a phone.
-playAmbience();
+// iOS reads a held finger as the start of a text selection and brings up its magnifier loupe, even with
+// selection turned off in CSS. Declining the touch's default outside the controls stops that; play reads
+// pointer events, which still arrive. Controls, fields and the scrolling sheets keep their own behaviour.
+document.addEventListener('touchstart', event => {
+  if (event.target instanceof Element && event.target.closest('button,a,input,textarea,select,label,dialog,#admin,#tuning')) return;
+  event.preventDefault();
+}, { passive: false });
 let view: PlayScene;
 let x = SPAWN_X, rotation: Rotation = SPAWN_ROTATION;
 let gesture: { id: number; x: number; y: number; lastY: number; column: number; moved: boolean; lowered: boolean; axis?: SwipeAxis } | undefined;
@@ -197,7 +209,7 @@ function drop(auto = false) {
   const column = x, orientation = rotation;
   const landing = board.landingFrom(column, view.activeY, orientation);
   return new Promise<boolean>(placed => view.drop(() => {
-    const added = board.place(column, landing.y, orientation); view.add(added, true, onboarding.placed(added)); sound.place();
+    const added = board.place(column, landing.y, orientation); view.add(added, true, onboarding.placed(added)); sound.place(); allowAmbience();
     // A fresh piece always enters at the current camera's upper center.
     x = SPAWN_X; rotation = SPAWN_ROTATION; view.spawn();
     if (board.atLimit) pause();
@@ -443,8 +455,11 @@ if (board.atLimit) pause();
 // start, and the onboarding begins while the intro is still clearing, so its first line comes straight
 // out of it.
 onboarding.apply();
-const handOver = new Promise<void>(resolve => playStudioIntro(play, resolve));
-void Promise.all([adminReady, handOver]).then(() => onboarding.begin());
+// The intro's landings sound only where audio may start on its own (the app shells). A browser holds
+// its audio until the first tap, and held landings would then all sound at once.
+sound.unlock();
+const handOver = new Promise<void>(resolve => playStudioIntro(play, resolve, white => { if (sound.running) sound.place(white, INTRO_GAIN); }));
+void Promise.all([adminReady, handOver]).then(() => { if (onboarding.pauseLocked) allowAmbience(); onboarding.begin(); });
 pauseButton.disabled = board.atLimit || onboarding.pauseLocked; play.classList.toggle('onboarding-intro', onboarding.pauseLocked);
 // App shell only: Android's back button opens the pause screen (and from there leaves the app), and
 // leaving the app holds play and sound the same way leaving the page does.

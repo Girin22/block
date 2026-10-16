@@ -8,6 +8,8 @@ import { nextTrack } from './ambience';
  */
 export const BUTTON_GAIN = 1;
 export type ButtonSound = 'pause' | 'resume';
+/** The studio intro's pavers land a little under the game's own (about -3 dB), as a prelude. */
+export const INTRO_GAIN = 0.7;
 /** The stone drag that opens a long run of white fillers. */
 export const DRAG_GAIN = 0.8;
 
@@ -38,6 +40,8 @@ export class PlaySound {
 
   constructor(private buttonURLs?: Record<ButtonSound, string>, private hitURLs: string[] = [], private dragURL?: string) {}
 
+  /** Whether effects can sound right now, without waiting for a tap. */
+  get running() { return this.context?.state === 'running'; }
   unlock() {
     try {
       clearTimeout(this.suspendTimer); this.pauseToken++;
@@ -70,14 +74,18 @@ export class PlaySound {
       }
     } catch { /* Silent play remains available. */ }
   }
-  place(white = false) {
+  /** `level` scales the hit, for the studio intro (INTRO_GAIN). */
+  place(white = false, level = 1) {
     this.unlock(); if (!this.context || !this.output) return;
     const variation = Math.random() * 2 - 1;
     // Until the recordings have loaded (only the first moments of a session), the synthesized hit stands in.
-    if (!this.decodedHits.length) { synthesize(this.context, this.output, white, variation); return; }
+    if (!this.decodedHits.length) {
+      const trim = this.context.createGain(); trim.gain.value = level; trim.connect(this.output);
+      synthesize(this.context, trim, white, variation); window.setTimeout(() => trim.disconnect(), 2000); return;
+    }
     this.lastHit = nextTrack(this.decodedHits.length, this.lastHit);
     const voice = hitVoice(white, variation), source = this.context.createBufferSource(), gain = this.context.createGain();
-    source.buffer = this.decodedHits[this.lastHit]; source.playbackRate.value = voice.rate; gain.gain.value = voice.gain;
+    source.buffer = this.decodedHits[this.lastHit]; source.playbackRate.value = voice.rate; gain.gain.value = voice.gain * level;
     source.connect(gain).connect(this.output);
     source.onended = () => { source.disconnect(); gain.disconnect(); };
     source.start();

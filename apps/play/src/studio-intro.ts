@@ -5,7 +5,8 @@ import { TILE_BLEED, tileImages } from './tile-assets';
  * Studio intro before the game (designer's frames iPhone 16 - 1~4, 2026-10-04): pavers drop in one by
  * one at an even beat and close into the app icon's pinwheel; the white 1×1 is laid into the middle from just above, as the game lays its fillers, while
  * the makers' names rise softly beneath, and after a 1 s hold it hands over to the game. Plays on every
- * launch; a tap skips it.
+ * launch; a tap skips it. Each landing sounds a stone hit a little under the game's (2026-10-16), and the
+ * street ambience waits until the game begins.
  */
 export const STUDIO_CREDIT = ['Studio Whynot', '×', 'Simulien'];
 
@@ -34,7 +35,11 @@ const DROP = 0.55, FILL_AT = 0.25 + BEAT * 3 + DROP + 0.15, FILL = FILL_LANDS, C
 const LEAVE = 1.4, HAND_OVER = 0.5;
 const LEAVE_AT = FILL_AT + Math.max(FILL, CREDIT) + HOLD;
 
-export function playStudioIntro(parent: HTMLElement, handOver: () => void) {
+/** Seconds into a drop at which a paver touches down (style.css studio-drop, 76%). */
+const TOUCH_DOWN = 0.76;
+
+/** `onLand` sounds each touch-down (the white filler with `white`); a skip silences the ones still to come. */
+export function playStudioIntro(parent: HTMLElement, handOver: () => void, onLand?: (white: boolean) => void) {
   const root = document.createElement('div'); root.id = 'studio-intro'; root.setAttribute('aria-label', STUDIO_CREDIT.join(' '));
   // The pinwheel spans 38% of the screen's width (designer's frame), so 3 × SPREAD + bleed cells make that.
   const cell = Math.min(parent.clientWidth * 0.38, parent.clientHeight * 0.175) / (3 * SPREAD + TILE_BLEED);
@@ -56,9 +61,13 @@ export function playStudioIntro(parent: HTMLElement, handOver: () => void) {
   credit.innerHTML = STUDIO_CREDIT.map(line => `<span>${line}</span>`).join('');
   root.append(mark, credit); parent.append(root);
   let timer = 0;
+  const landings = onLand ? [
+    ...PIECES.map(({ at }) => window.setTimeout(() => onLand(false), (at + DROP * TOUCH_DOWN) * 1000)),
+    window.setTimeout(() => onLand(true), (FILL_AT + FILL) * 1000),
+  ] : [];
   // A skipping tap hands over twice as fast; the scale stretches every part of the hand-over alike.
   const leave = (scale: number) => {
-    clearTimeout(timer); root.style.setProperty('--leave', String(scale)); root.classList.add('leaving');
+    clearTimeout(timer); landings.forEach(clearTimeout); root.style.setProperty('--leave', String(scale)); root.classList.add('leaving');
     window.setTimeout(handOver, HAND_OVER * scale * 1000);
     window.setTimeout(() => root.remove(), LEAVE * scale * 1000);
   };

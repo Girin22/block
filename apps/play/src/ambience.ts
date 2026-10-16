@@ -26,8 +26,19 @@ export const CROSSFADE = 6;
  * Lowered from -32 on 2026-09-29 after playtests found the bed a little loud.
  */
 export const TARGET_LUFS = -35;
-/** Seconds to swell in the first time, and time constants for pausing and resuming. */
-export const FADE_IN = 2.5, PAUSE_FADE = 0.25, RESUME_FADE = 0.4;
+/**
+ * Seconds to swell in the first time, and time constants for pausing and resuming. The first swell is
+ * slow and eases in (FADE_IN_CURVE), so the street rises from silence under the first block or the
+ * tutorial's first line rather than arriving (2026-10-16, was a 2.5 s straight ramp).
+ */
+export const FADE_IN = 8, PAUSE_FADE = 0.25, RESUME_FADE = 0.4;
+
+/** Gain over the first swell: quiet for a long while, then opening up, which sounds even to the ear. */
+export function fadeInCurve(steps = 64) {
+  const curve = new Float32Array(steps);
+  for (let i = 0; i < steps; i++) { const t = i / (steps - 1); curve[i] = t * t * t; }
+  return curve;
+}
 /** Seconds to cross from one environment to another while playing. */
 export const SWITCH_FADE = 1.5;
 /**
@@ -215,8 +226,10 @@ export class Soundscape {
       if (deck && REDRAW_ON_RESUME && !first) deck.redraw();
       if (deck) { deck.level.gain.cancelScheduledValues(0); deck.level.gain.value = 1; deck.play(); }
       const now = this.context.currentTime, gain = this.master.gain;
-      gain.cancelScheduledValues(now); gain.setValueAtTime(gain.value, now);
-      if (first) gain.linearRampToValueAtTime(1, now + FADE_IN); else gain.setTargetAtTime(1, now, RESUME_FADE / 3);
+      gain.cancelScheduledValues(now);
+      // The curve starts from silence on its own; a value set at the same instant would overlap it.
+      if (first) gain.setValueCurveAtTime(fadeInCurve(), now, FADE_IN);
+      else { gain.setValueAtTime(gain.value, now); gain.setTargetAtTime(1, now, RESUME_FADE / 3); }
     } catch { /* Ambience simply stays silent. */ }
   }
 
