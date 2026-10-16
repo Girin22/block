@@ -1,0 +1,36 @@
+# iOS builds on Codemagic's cloud Mac, since there is no Mac here (docs/app-release-plan.html, section 11).
+# Start a build by hand in Codemagic; it signs with the App Store Connect API key and uploads to TestFlight.
+# Setup once: Codemagic > Team settings > Integrations > Developer Portal > add the App Store Connect API key
+# under the name `bodobodo` (the integrations entry below must match it exactly).
+workflows:
+  ios-testflight:
+    name: iOS → TestFlight
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    integrations:
+      app_store_connect: bodobodo
+    environment:
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.simulien.bodobodo
+      node: 22
+      xcode: latest
+    scripts:
+      - name: Install
+        script: npm ci
+      - name: Web build and copy into the iOS shell
+        script: npm run build && npx cap sync ios
+      - name: Signing
+        script: xcode-project use-profiles
+      - name: Build number
+        # Each upload needs a higher build number; Codemagic's counter only goes up. The version players see
+        # (MARKETING_VERSION in the Xcode project) is changed by hand for each release.
+        script: cd ios/App && agvtool new-version -all $((BUILD_NUMBER + 100))
+      - name: Build the .ipa
+        script: xcode-project build-ipa --project ios/App/App.xcodeproj --scheme App
+    artifacts:
+      - build/ios/ipa/*.ipa
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
