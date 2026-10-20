@@ -2,7 +2,9 @@ import { clackVoice, synthesize } from './audio';
 import { nextTrack } from './ambience';
 
 /**
- * The pause button pops: the high pop pauses, the low one resumes. At their recorded level (-30 LUFS
+ * The pause button pops: the high pop pauses, the low one resumes. Since 2026-10-20 both are Pixabay's
+ * "Wine cork pop" (universfield, Pixabay Content License); the resume pop is the same cut at 0.8x speed,
+ * and both are leveled to the Epidemic pops they replaced. At their recorded level (-30 LUFS
  * momentary) they sit about 5 dB under a block landing and 5 dB over the ambience, as a UI sound
  * should. 2.5 (-22, the loudest sound in the game) was too loud in play, 2026-09-29.
  */
@@ -12,8 +14,6 @@ export type ButtonSound = 'pause' | 'resume';
 export const INTRO_GAIN = 0.7;
 /** Seconds a hit set ahead sounds before the drawn contact: the eye reads a landing a touch early. */
 export const HIT_LEAD = 0.02;
-/** The stone drag that opens a long run of white fillers. */
-export const DRAG_GAIN = 0.8;
 
 /** Playback rate and level for one placement hit: the white filler is higher and quieter. */
 export function hitVoice(white: boolean, variation = 0) {
@@ -33,14 +33,16 @@ export class PlaySound {
   /** Bumped by every unlock, so a pending suspend from an earlier pause is dropped. */
   private pauseToken = 0;
 
-  /** Recorded stone hits for placement, decoded once; one is picked at random per placement. */
+  /**
+   * Recorded stone hits for placement, decoded once; one is picked at random per placement. They are cut
+   * from Pixabay's "Two large cobblestone blocks" (Pixabay Content License) with the room tail pulled
+   * down, replacing the Epidemic Sound hits on 2026-10-20.
+   */
   private hits?: Promise<AudioBuffer[]>;
   private decodedHits: AudioBuffer[] = [];
   private lastHit = -1;
 
-  private dragBuffer?: Promise<AudioBuffer | undefined>;
-
-  constructor(private buttonURLs?: Record<ButtonSound, string>, private hitURLs: string[] = [], private dragURL?: string) {}
+  constructor(private buttonURLs?: Record<ButtonSound, string>, private hitURLs: string[] = []) {}
 
   /** Whether effects can sound right now, without waiting for a tap. */
   get running() { return this.context?.state === 'running'; }
@@ -64,10 +66,6 @@ export class PlaySound {
         const context = this.context;
         this.hits = Promise.all(this.hitURLs.map(url => fetch(url).then(response => response.arrayBuffer()).then(data => context.decodeAudioData(data))))
           .then(buffers => (this.decodedHits = buffers)).catch(() => []);
-      }
-      if (this.dragURL && !this.dragBuffer) {
-        const context = this.context;
-        this.dragBuffer = fetch(this.dragURL).then(response => response.arrayBuffer()).then(data => context.decodeAudioData(data)).catch(() => undefined);
       }
       // The pops are tiny; decode them once so later presses play instantly.
       if (this.buttonURLs && !this.buttonBuffers) {
@@ -96,19 +94,6 @@ export class PlaySound {
     source.connect(gain).connect(this.output);
     source.onended = () => { source.disconnect(); gain.disconnect(); };
     source.start(at);
-  }
-  /** A long run of white fillers begins: one drag of stone over stone. */
-  drag() {
-    this.unlock(); const context = this.context, output = this.output;
-    if (!context || !output || !this.dragBuffer) return;
-    void this.dragBuffer.then(buffer => {
-      if (!buffer || context.state !== 'running') return;
-      const source = context.createBufferSource(), gain = context.createGain();
-      source.buffer = buffer; gain.gain.value = DRAG_GAIN;
-      source.connect(gain).connect(output);
-      source.onended = () => { source.disconnect(); gain.disconnect(); };
-      source.start();
-    });
   }
   /** The pause button's press. Bypasses the limiter so it plays at exactly BUTTON_GAIN. */
   button(sound: ButtonSound) {

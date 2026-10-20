@@ -62,4 +62,6 @@ Vercel에서 저장소 루트를 선택하고 Framework `Vite`, Build `npm run b
 ## 출처
 
 - 글꼴: 영문은 Jost(`assets/fonts/Jost`, SIL Open Font License 1.1), 한글과 숫자는 나눔손글씨 강부장님체(`assets/fonts`, 네이버 나눔글꼴, SIL Open Font License 1.1)를 사용합니다.
-- 빗소리 `assets/audio/날씨_비/rain-window.mp3`: 「창문을 열고 듣는 빗소리」, 한국저작권위원회 공유저작물(공유마당, 자료 번호 806010, 2019), CC BY. 파일 태그에 저작자 이름이 없어 비워 두었습니다. 내려받은 페이지에 저작자가 표시돼 있다면 이 줄에 추가해 주세요.
+- 빗소리 `assets/audio/날씨_비/rain-window.mp3`: 「창문을 열고 듣는 빗소리」, 저작자 한국저작권위원회, 공유마당(https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?wrtSn=13220720&menuNo=200020), CC BY 4.0.
+- 효과음: 착지음 `assets/sfx/place/stone-01~05.wav`는 Pixabay 「Two large cobblestone blocks」(freesound_community), 일시정지·재개음 `assets/sfx/pause-pop.wav`·`resume-pop.wav`는 Pixabay 「Wine cork pop」(universfield)을 잘라 다듬었습니다. 둘 다 Pixabay Content License(출처 표시 불필요, 원본 단독 배포 금지)입니다.
+- 거리 소리 `assets/audio/거리/`: 「한옥마을_골목_B」(L03256, wrtSn=13372174), 「한옥마을_선비길_골목」(L03258, wrtSn=13372176), 「포항_건어물거리」(L03314, wrtSn=13372232), 「울산_문화의_거리」(L03320, wrtSn=13372238), 저작자 JICA, 한국저작권위원회 공유마당, 공공누리 제1유형(출처표시).

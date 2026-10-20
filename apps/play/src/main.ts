@@ -14,13 +14,11 @@ import { Rain } from './rain';
 import { RainAmbience } from './rain-sound';
 import pausePopURL from '../../../assets/sfx/pause-pop.wav?url';
 import resumePopURL from '../../../assets/sfx/resume-pop.wav?url';
-import hit01URL from '../../../assets/sfx/place/place-01.wav?url';
-import hit05URL from '../../../assets/sfx/place/place-05.wav?url';
-import hit06URL from '../../../assets/sfx/place/place-06.wav?url';
-import hit12URL from '../../../assets/sfx/place/place-12.wav?url';
-import hit14URL from '../../../assets/sfx/place/place-14.wav?url';
-import hit16URL from '../../../assets/sfx/place/place-16.wav?url';
-import fillDragURL from '../../../assets/sfx/place/ES_Rocks, Movement, Stone, Drag, Stone Surface, Small, Short Movements - Epidemic Sound - 7121-9251.wav?url';
+import stone01URL from '../../../assets/sfx/place/stone-01.wav?url';
+import stone02URL from '../../../assets/sfx/place/stone-02.wav?url';
+import stone03URL from '../../../assets/sfx/place/stone-03.wav?url';
+import stone04URL from '../../../assets/sfx/place/stone-04.wav?url';
+import stone05URL from '../../../assets/sfx/place/stone-05.wav?url';
 import rainSoundURL from '../../../assets/audio/날씨_비/rain-window.m4a?url';
 import { Soundscape, type Environment } from './ambience';
 import hanokAlleyURL from '../../../assets/audio/거리/L03256-004.m4a?url';
@@ -116,7 +114,7 @@ if (admin) {
   setInterval(() => { audio.innerHTML = soundscape.status; }, 500);
 }
 let board = new Pavement(), started = new Date();
-const sound = new PlaySound({ pause: pausePopURL, resume: resumePopURL }, [hit01URL, hit05URL, hit06URL, hit12URL, hit14URL, hit16URL], fillDragURL);
+const sound = new PlaySound({ pause: pausePopURL, resume: resumePopURL }, [stone01URL, stone02URL, stone03URL, stone04URL, stone05URL]);
 // Loudness of each recording (integrated LUFS) so every environment plays at the same level. Morning and
 // night were dropped from the app on 2026-10-01; their recordings stay in assets/audio, out of the build.
 const soundscape = new Soundscape({
@@ -164,7 +162,6 @@ function createScene() {
   try {
     view = new PlayScene(canvas, board, drop, rain); view.aim(x, rotation);
     view.onFillSeat = () => { if (!paused && !document.hidden) sound.place(true); };
-    view.onFillDrag = () => { if (!paused && !document.hidden) sound.drag(); };
     if (import.meta.env.DEV && board.tiles.length) view.add(board.tiles.filter(tile => tile.y >= board.height - 24), false);
   }
   catch (error) {

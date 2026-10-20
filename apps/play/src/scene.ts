@@ -64,8 +64,6 @@ export class PlayScene {
   private lastDraw = -Infinity;
   /** Fires as a white filler seats on screen; the game plays its sound here. */
   onFillSeat?: () => void;
-  /** Fires once as a long run of fillers begins, in place of most of their clicks. */
-  onFillDrag?: () => void;
   constructor(private canvas: HTMLCanvasElement, private board: Pavement, private onAutoLand: () => void, private rain?: Rain) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
@@ -197,7 +195,7 @@ export class PlayScene {
   add(tiles: Tile[], animate = true, pace: { delay?: number; speed?: number } = {}) {
     const speed = tuning.fillSpeed * (pace.speed ?? 1), delay = pace.delay ?? 0;
     // Fillers of one placement are laid in order, a beat apart. Only those that will seat inside the
-    // view the camera is heading for make a sound, and a long run opens with a drag instead of a rattle.
+    // view the camera is heading for make a sound, and a long run clicks only a few times instead of rattling.
     const whites = tiles.filter(tile => tile.white), target = this.targetCenter;
     const audible = animate ? whites.flatMap((tile, order) => tile.y + tile.h > target - this.halfHeight && tile.y < target + this.halfHeight ? [order] : []) : [];
     const plan = planFillSounds(audible);
@@ -213,7 +211,7 @@ export class PlayScene {
       this.scene.add(mesh); this.settled.set(tile.id, mesh);
       if (!tile.white || !animate) continue;
       // Lowered from just above: its own fading material and shadow exist only until it seats.
-      mesh.userData.born = this.animationTime + delay + order * FILL_STAGGER / speed; mesh.userData.speed = speed; mesh.userData.sound = plan.seats.has(order); mesh.userData.drag = plan.drag === order;
+      mesh.userData.born = this.animationTime + delay + order * FILL_STAGGER / speed; mesh.userData.speed = speed; mesh.userData.sound = plan.seats.has(order);
       mesh.userData.spin = mesh.rotation.z; order++;
       const material = this.material(image).clone(); material.opacity = 0; mesh.material = material;
       const shadow = this.fallingShadow.spawn(image); shadow.renderOrder = tile.id - .5;
@@ -232,7 +230,7 @@ export class PlayScene {
     this.paused = value;
     // A paused summary shows completed joins, never a half-grown white filler.
     // Its sounds are dropped with it, so nothing plays late when play resumes.
-    if (value) for (const mesh of this.settled.values()) { mesh.userData.born = Math.min(mesh.userData.born, this.animationTime - .5 / tuning.fillSpeed); mesh.userData.drag = false; }
+    if (value) for (const mesh of this.settled.values()) { mesh.userData.born = Math.min(mesh.userData.born, this.animationTime - .5 / tuning.fillSpeed); }
   }
   dispose() {
     cancelAnimationFrame(this.raf); this.observer.disconnect();
@@ -299,7 +297,6 @@ export class PlayScene {
       // The white filler is lowered straight onto its slot: accelerating, rigid, flush on contact.
       filling = true;
       const age = (this.animationTime - mesh.userData.born) * (mesh.userData.speed ?? tuning.fillSpeed);
-      if (mesh.userData.drag && age >= FILL_DELAY && dt > 0) { mesh.userData.drag = false; this.onFillDrag?.(); }
       if (age >= FILL_LANDS) { this.seat(mesh); if (mesh.userData.sound && dt > 0) this.onFillSeat?.(); continue; }
       const altitude = fillAltitude(age), opacity = fillOpacity(age), lift = 1 + FILL_LIFT * altitude;
       (mesh.material as THREE.MeshBasicMaterial).opacity = opacity;
