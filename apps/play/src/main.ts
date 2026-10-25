@@ -4,7 +4,7 @@ import { formatMeters, Pavement, SPAWN_ROTATION, SPAWN_X, WIDTH, type Rotation }
 import { PlayScene } from './scene';
 import { INTRO_GAIN, PlaySound } from './sound';
 import { isDownSwipe, swipeAxis, type SwipeAxis } from './input';
-import { downloadFile, Receipt, receiptPhoto } from './export';
+import { downloadFile, Receipt, receiptArt, receiptPhoto } from './export';
 import { showSavedToast } from './saved-toast';
 import { mountReceiptPreview } from './receipt-preview';
 import { PauseIcon } from './pause-icon';
@@ -411,7 +411,8 @@ exportButton.addEventListener('click', async () => {
   // chooses to start over.
   exporting = true; exportButton.disabled = true; exportButton.textContent = '저장 중'; exportStatus.textContent = '';
   try {
-    const receipt = new Receipt(board, started);
+    // Saved as it looks: an event saves its own pavers (each tile the same one as on screen).
+    const receipt = new Receipt(board, started, await receiptArt(board.tiles, skin()));
     let file: File;
     if (receipt.format === 'png' && typeof CompressionStream !== 'undefined') {
       file = await receiptPhoto(receipt, undefined, value => { exportButton.textContent = `저장 중 ${Math.round(value * 100)}%`; })
@@ -433,7 +434,7 @@ async function openReceipt() {
   generationAbort = new AbortController();
   const signal = generationAbort.signal;
   const generation = ++photoGeneration;
-  const receipt = new Receipt(board, started);
+  const receipt = new Receipt(board, started, await receiptArt(board.tiles, skin()));
   receiptStatus.textContent = '';
   photo = undefined; manualPhoto = false;
   saveButton.disabled = true; saveButton.textContent = '사진 준비 중…';
