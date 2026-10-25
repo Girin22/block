@@ -97,6 +97,8 @@ export class PlayScene {
   private lastDraw = -Infinity;
   /** Fires as a white filler seats on screen; the game plays its sound here. */
   onFillSeat?: () => void;
+  /** Fires once per placement that seals a space, as its first white filler seats. */
+  onFillLand?: () => void;
   constructor(private canvas: HTMLCanvasElement, private board: Pavement, private onAutoLand: () => void, private rain?: Rain) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
@@ -298,7 +300,7 @@ export class PlayScene {
       this.scene.add(mesh); this.settled.set(tile.id, mesh);
       if (!tile.white || !animate) continue;
       // Lowered from just above: its own fading material and shadow exist only until it seats.
-      mesh.userData.born = this.animationTime + delay + order * FILL_STAGGER / speed; mesh.userData.speed = speed; mesh.userData.sound = plan.seats.has(order);
+      mesh.userData.born = this.animationTime + delay + order * FILL_STAGGER / speed; mesh.userData.speed = speed; mesh.userData.sound = plan.seats.has(order); mesh.userData.first = order === 0;
       mesh.userData.spin = mesh.rotation.z; order++;
       const fading = material.clone(); fading.opacity = 0; mesh.material = fading;
       const shadow = this.fallingShadow.spawn(image); shadow.renderOrder = tile.id - .5;
@@ -386,7 +388,12 @@ export class PlayScene {
       // The white filler is lowered straight onto its slot: accelerating, rigid, flush on contact.
       filling = true;
       const age = (this.animationTime - mesh.userData.born) * (mesh.userData.speed ?? tuning.fillSpeed);
-      if (age >= FILL_LANDS) { this.seat(mesh); if (mesh.userData.sound && dt > 0) this.onFillSeat?.(); continue; }
+      if (age >= FILL_LANDS) {
+        this.seat(mesh);
+        if (mesh.userData.sound && dt > 0) this.onFillSeat?.();
+        if (mesh.userData.first && dt > 0) this.onFillLand?.();
+        continue;
+      }
       const altitude = fillAltitude(age), opacity = fillOpacity(age), lift = 1 + FILL_LIFT * altitude;
       (mesh.material as THREE.MeshBasicMaterial).opacity = opacity;
       mesh.position.y = mesh.userData.baseY + mesh.userData.height / 2 + fillGap(age); mesh.position.z = .1; mesh.scale.set(lift, lift, 1);

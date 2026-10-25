@@ -60,11 +60,13 @@ export function mountHalloweenPanel(body: HTMLElement, status: HTMLElement) {
       <p class="hint">켜 둔 효과 중 하나가 평균 간격마다(±40%) 무작위로 지나가요. 마녀가 달을 지날 때는 글리치가 함께 와요(글리치 켜짐일 때).</p></div>
     <div class="tuning-row"><div class="row-head"><label>로파이 글리치</label></div>
       <div class="tuning-choices" id="hw-glitch" role="radiogroup" aria-label="자동 글리치"><button type="button" role="radio" data-value="1">자동 켜기</button><button type="button" role="radio" data-value="0">끄기</button></div>
+      <p class="hw-sub">빈 공간이 채워질 때 1회</p>
+      <div class="tuning-choices" id="hw-glitch-fill" role="radiogroup" aria-label="빈 공간이 채워질 때 글리치"><button type="button" role="radio" data-value="1">켜기</button><button type="button" role="radio" data-value="0">끄기</button></div>
       <div class="hw-range"><label for="hw-glitch-every">평균 간격</label><input type="range" id="hw-glitch-every" min="12" max="120" step="1"><span class="hw-value"></span></div>
       <div class="hw-range"><label for="hw-glitch-strength">세기</label><input type="range" id="hw-glitch-strength" min="0.1" max="1" step="0.05"><span class="hw-value"></span></div>
       <div class="hw-range"><label for="hw-glitch-ms">길이</label><input type="range" id="hw-glitch-ms" min="150" max="900" step="10"><span class="hw-value"></span></div>
       <button type="button" class="wide" id="hw-glitch-now">지금 글리치 (키보드 G)</button>
-      <p class="hint">눈이 편하도록 깜빡임·밝기 변화 없이 짧게 찢어지고 색이 살짝 갈라져요. 자동은 최소 12초 간격이에요.</p></div>
+      <p class="hint">눈이 편하도록 깜빡임·밝기 변화 없이 짧게 찢어지고 색이 살짝 갈라져요. 자동은 최소 12초 간격이에요. 채움 글리치는 첫 흰 타일이 자리에 앉는 순간 한 번(여진 없음), 연달아 채워도 4초에 한 번까지만 나와요. 자동과 따로 켜고 끌 수 있어요.</p></div>
     <button type="button" class="wide" id="hw-reset">할로윈 설정 기본값으로</button>`;
   body.append(section);
 
@@ -132,6 +134,7 @@ export function mountHalloweenPanel(body: HTMLElement, status: HTMLElement) {
   const switches = [
     choices('#hw-backdrop', () => halloween.backdrop, value => { halloween.backdrop = value as HalloweenSettings['backdrop']; }),
     choices('#hw-glitch', () => halloween.glitch ? '1' : '0', value => { halloween.glitch = value === '1'; }),
+    choices('#hw-glitch-fill', () => halloween.glitchOnFill ? '1' : '0', value => { halloween.glitchOnFill = value === '1'; }),
   ];
 
   const range = (id: string, key: 'visitorEvery' | 'glitchEvery' | 'glitchStrength' | 'glitchMs', format: (value: number) => string) => {

@@ -187,6 +187,7 @@ function createScene() {
     if (noWebGL !== null) throw new Error('WebGL turned off with ?nowebgl');
     view = new PlayScene(canvas, board, drop, rain); view.aim(x, rotation); view.setSkin(skin());
     view.onFillSeat = () => { if (!paused && !document.hidden) sound.place(true); };
+    view.onFillLand = () => glitches.fill();
     if (import.meta.env.DEV && board.tiles.length) view.add(board.tiles.filter(tile => tile.y >= board.height - 24), false);
   }
   catch (error) {

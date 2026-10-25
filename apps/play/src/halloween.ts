@@ -47,6 +47,8 @@ export interface HalloweenSettings {
   /** Average seconds between visitors crossing the sky. */
   visitorEvery: number;
   glitch: boolean;
+  /** One glitch each time a sealed space fills (as its first white filler seats). */
+  glitchOnFill: boolean;
   /** Average seconds between automatic glitches. */
   glitchEvery: number;
   /** 0-1: how far the picture tears and splits. */
@@ -64,7 +66,7 @@ export const HALLOWEEN_DEFAULTS: Readonly<HalloweenSettings> = {
   backdrop: 'lantern',
   visitors: { bats: false, witch: false, jack: false },
   visitorEvery: 14,
-  glitch: false, glitchEvery: 40, glitchStrength: 0.5, glitchMs: 420,
+  glitch: false, glitchOnFill: false, glitchEvery: 40, glitchStrength: 0.5, glitchMs: 420,
 };
 
 const copy = (settings: Readonly<HalloweenSettings>): HalloweenSettings => JSON.parse(JSON.stringify(settings));
