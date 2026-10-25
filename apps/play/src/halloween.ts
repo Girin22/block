@@ -1,6 +1,7 @@
 import stone from '../../../assets/images/halloween/stone.png?url';
 import ghostDomino from '../../../assets/images/halloween/ghost-domino.png?url';
 import purple from '../../../assets/images/halloween/purple.png?url';
+import orange from '../../../assets/images/halloween/orange.png?url';
 import mummy from '../../../assets/images/halloween/mummy.png?url';
 import pumpkin from '../../../assets/images/halloween/pumpkin.png?url';
 import witch from '../../../assets/images/halloween/witch.png?url';
@@ -27,6 +28,7 @@ export const PAVER_LIBRARY: readonly Paver[] = [
   { id: 'stone', name: '거미줄 돌', url: stone, shape: 'domino' },
   { id: 'ghost-domino', name: '유령', url: ghostDomino, shape: 'domino' },
   { id: 'purple', name: '보라', url: purple, shape: 'domino' },
+  { id: 'orange', name: '주황', url: orange, shape: 'domino' },
   { id: 'mummy', name: '붕대', url: mummy, shape: 'domino' },
   { id: 'pumpkin', name: '호박', url: pumpkin, shape: 'square' },
   { id: 'witch', name: '마녀', url: witch, shape: 'square' },
@@ -47,7 +49,7 @@ export interface HalloweenSettings {
   /** Average seconds between visitors crossing the sky. */
   visitorEvery: number;
   glitch: boolean;
-  /** One glitch each time a sealed space fills (as its first white filler seats). */
+  /** One glitch as a sealed space starts to fill (its first white filler begins to come down). */
   glitchOnFill: boolean;
   /** Average seconds between automatic glitches. */
   glitchEvery: number;
@@ -57,16 +59,22 @@ export interface HalloweenSettings {
   glitchMs: number;
 }
 
+/**
+ * Settled by the planner on 2026-10-25: purple and orange blocks half and half, pumpkins and witches
+ * half and half in single gaps, bandages in two-cell gaps; the lantern night with bats and the witch
+ * about every 14 s; a glitch only as a sealed space starts to fill. The other drafts stay in the
+ * library for the panel.
+ */
 export const HALLOWEEN_DEFAULTS: Readonly<HalloweenSettings> = {
   tiles: {
-    block: [{ paver: 'stone', weight: 1 }, { paver: 'ghost-domino', weight: 0 }, { paver: 'purple', weight: 0 }],
-    single: [{ paver: 'pumpkin', weight: 1 }, { paver: 'witch', weight: 0 }, { paver: 'ghost', weight: 0 }],
+    block: [{ paver: 'purple', weight: 1 }, { paver: 'orange', weight: 1 }],
+    single: [{ paver: 'pumpkin', weight: 1 }, { paver: 'witch', weight: 1 }],
     double: [{ paver: 'mummy', weight: 1 }],
   },
   backdrop: 'lantern',
-  visitors: { bats: false, witch: false, jack: false },
+  visitors: { bats: true, witch: true, jack: false },
   visitorEvery: 14,
-  glitch: false, glitchOnFill: false, glitchEvery: 40, glitchStrength: 0.5, glitchMs: 420,
+  glitch: false, glitchOnFill: true, glitchEvery: 40, glitchStrength: 0.5, glitchMs: 420,
 };
 
 const copy = (settings: Readonly<HalloweenSettings>): HalloweenSettings => JSON.parse(JSON.stringify(settings));

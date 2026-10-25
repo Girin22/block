@@ -6,8 +6,8 @@ import type { HalloweenSettings } from './halloween';
  * The witch crossing the moon brings one too. `fire` draws it (the board's shader and the sky's jitter).
  */
 export const GLITCH_MIN_GAP = 12;
-/** Fill glitches answer the player, so they may come closer together, but never back to back. */
-export const FILL_GLITCH_GAP = 4;
+/** Cooldown after any glitch: a space filled within this many seconds brings none. */
+export const FILL_GLITCH_GAP = 10;
 
 export class Glitches {
   private active = false;
@@ -36,7 +36,7 @@ export class Glitches {
     if (this.active && this.settings?.glitch && performance.now() - this.last > GLITCH_MIN_GAP * 1000) this.now(scale);
   }
 
-  /** A sealed space just filled: one glitch, no aftershock, if that option is on (independent of the automatic ones). */
+  /** A sealed space starts to fill: one glitch, no aftershock, if that option is on and the cooldown is over. */
   fill() {
     if (!this.active || !this.settings?.glitchOnFill || performance.now() - this.last < FILL_GLITCH_GAP * 1000) return;
     this.last = performance.now();
