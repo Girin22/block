@@ -40,4 +40,5 @@
 - 앱 출시 계획은 `docs/app-release-plan.html`, 개발용 기기 미리보기는 `npm run dev` 후 `/devices.html`(빌드에 포함되지 않음).
 - `npm run dev`: 웹 프로토타입 실행. `npm run build`: 타입 검사 및 빌드. `npm run test`: 핵심 규칙 검증.
 - 앱 셸은 Capacitor 8(`capacitor.config.ts`, `android/`, `ios/`)이며 앱 ID는 `com.simulien.bodobodo`(변경 금지), 이름은 ‘보도보도’다. 세로 고정, 앱 전용 동작(뒤로가기→일시정지, 백그라운드 정지, 사진/파일 저장)은 `apps/play/src/native.ts`에만 두고 웹에서는 동작하지 않는다. 웹 빌드 후 `npm run app:sync`로 앱에 반영한다.
+- 3D(WebGL2)를 열지 못하면 온보딩·일시정지 버튼 대신 전체 화면 안내를 띄우고 온보딩 ‘봤음’은 저장하지 않는다. iOS 앱은 차단 모드 해제 단계(설정 › 개인정보 보호 및 보안 › 차단 모드 › 웹사이트 사용자화에서 보도보도 끄기)를, Android는 WebView 업데이트를, 웹은 브라우저 안내를 보인다. 개발 서버에서 `?nowebgl=ios|android|web`로 재현한다.
 - 네이티브 만보기는 아직 구현하지 않았다. 웹 움직임 감지는 실험 기능으로 명확히 구분한다.

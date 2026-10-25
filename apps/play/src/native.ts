@@ -8,6 +8,8 @@ const Gallery = registerPlugin<{ open(options: { path: string }): Promise<void> 
  * no-op or falls back to the browser, so the web build behaves exactly as before.
  */
 export const isNativeApp = Capacitor.isNativePlatform();
+/** 'ios', 'android' or 'web'. */
+export const platform = Capacitor.getPlatform();
 
 export interface NativeHooks {
   /** The Android back button. Return true when the game used it; false lets the app go to the background. */

@@ -27,7 +27,7 @@ import pohangMarketURL from '../../../assets/audio/거리/L03314-004.m4a?url';
 import ulsanStreetURL from '../../../assets/audio/거리/L03320-004.m4a?url';
 import { environmentIcons, type PickedEnvironment } from './environment-icons';
 import { onTuning } from './tuning';
-import { installNative, isNativeApp, saveExport } from './native';
+import { installNative, isNativeApp, platform, saveExport } from './native';
 import { Onboarding } from './onboarding';
 import { playStudioIntro } from './studio-intro';
 
@@ -158,17 +158,35 @@ document.addEventListener('touchstart', event => {
 let view: PlayScene;
 let x = SPAWN_X, rotation: Rotation = SPAWN_ROTATION;
 let gesture: { id: number; x: number; y: number; lastY: number; column: number; moved: boolean; lowered: boolean; axis?: SwipeAxis } | undefined;
+// Development only: ?nowebgl fails the scene as if WebGL were off; ?nowebgl=ios|android|web picks whose guide shows.
+const noWebGL = import.meta.env.DEV ? new URLSearchParams(location.search).get('nowebgl') : null;
 function createScene() {
   try {
+    if (noWebGL !== null) throw new Error('WebGL turned off with ?nowebgl');
     view = new PlayScene(canvas, board, drop, rain); view.aim(x, rotation);
     view.onFillSeat = () => { if (!paused && !document.hidden) sound.place(true); };
     if (import.meta.env.DEV && board.tiles.length) view.add(board.tiles.filter(tile => tile.y >= board.height - 24), false);
   }
   catch (error) {
-    console.error(error); const message = document.createElement('p'); message.className = 'render-error';
-    message.textContent = '3D 화면을 열 수 없어요. 하드웨어 가속을 지원하는 브라우저에서 다시 열어주세요.';
-    document.querySelector('.play')!.append(message);
+    console.error(error); showRenderError();
   }
+}
+/**
+ * The board cannot be drawn, so nothing can be placed: the guide takes the whole screen instead of the
+ * onboarding and the red button. Without WebGL 2 on an iPhone it is almost always Lockdown Mode, which
+ * turns WebGL off inside apps too; the app can be excluded from it in Settings.
+ */
+function showRenderError() {
+  const webgl = noWebGL === null && !!document.createElement('canvas').getContext('webgl2');
+  const target = noWebGL || platform;
+  const guide = document.createElement('section'); guide.id = 'render-error'; guide.setAttribute('role', 'alert');
+  let body = '<p>앱을 완전히 닫고 다시 열어 주세요.</p>';
+  if (!webgl && target === 'ios') body = `<p>차단 모드가 켜져 있으면<br>보도블럭을 생성할 수 없어요.</p>
+    <ol><li>설정 › 개인정보 보호 및 보안 › 차단 모드</li><li>웹사이트 사용자화에서 보도보도 끄기</li><li>보도보도를 완전히 닫고 다시 열기</li></ol>`;
+  else if (!webgl && target === 'android') body = '<p>Android System WebView와 Chrome을<br>최신 버전으로 업데이트한 뒤 다시 열어 주세요.</p>';
+  else if (!webgl) body = '<p>하드웨어 가속을 지원하는 브라우저에서<br>다시 열어 주세요.</p>';
+  guide.innerHTML = `<h1>3D 화면을 열 수 없어요.</h1>${body}`;
+  play.append(guide); play.classList.add('render-failed');
 }
 // Explicit, local-development-only fixture. A normal reload/session is unchanged.
 if (import.meta.env.DEV) {
@@ -458,7 +476,8 @@ onboarding.apply();
 // its audio until the first tap, and held landings would then all sound at once.
 sound.unlock();
 const handOver = new Promise<void>(resolve => playStudioIntro(play, resolve, (white, inSeconds) => { if (sound.running) sound.place(white, INTRO_GAIN, inSeconds); }));
-void Promise.all([adminReady, handOver]).then(() => { if (onboarding.pauseLocked) allowAmbience(); onboarding.begin(); });
+// Without a board the onboarding never starts, so its "seen" mark waits for a launch that can play.
+void Promise.all([adminReady, handOver]).then(() => { if (!view) return; if (onboarding.pauseLocked) allowAmbience(); onboarding.begin(); });
 pauseButton.disabled = board.atLimit || onboarding.pauseLocked; play.classList.toggle('onboarding-intro', onboarding.pauseLocked);
 // App shell only: Android's back button opens the pause screen (and from there leaves the app), and
 // leaving the app holds play and sound the same way leaving the page does.

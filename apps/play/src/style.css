@@ -161,7 +161,14 @@ button:focus-visible{outline:2px solid #a7c897;outline-offset:4px}
 dialog{border:1px solid #dce2d3;background:#f6f5ee;box-shadow:0 18px 70px #0003}
 dialog::backdrop{background:#17151555;backdrop-filter:blur(9px)}
 dialog button{display:block;width:100%;padding:20px 10px;border-radius:13px;background:none;font-size:15px;letter-spacing:1px}
-.render-error{position:absolute;inset:40% 25px auto;text-align:center;font-size:13px;line-height:1.8;color:#faf9f6}
+/* No board (WebGL off, mostly Lockdown Mode): the guide takes the whole screen in place of play. */
+.render-failed #pause,.render-failed #pause-actions,.render-failed #onboarding,.render-failed #onboarding-hint{display:none}
+#render-error{position:absolute;inset:0;z-index:4;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:28px;padding:0 28px;background:#2c2929;color:#faf9f6;font-family:'GangBuJang',sans-serif;text-align:center}
+#render-error h1{margin:0;font-size:28px;font-weight:400;line-height:1.4}
+#render-error p{margin:0;font-size:20px;line-height:1.7;color:#e4e0d8}
+#render-error ol{margin:0;padding:20px 22px;width:min(340px,100%);display:flex;flex-direction:column;gap:16px;list-style:none;counter-reset:step;border:1px solid #faf9f624;border-radius:18px;background:#faf9f60d;text-align:left}
+#render-error li{counter-increment:step;display:flex;align-items:baseline;gap:12px;font-size:18px;line-height:1.5}
+#render-error li::before{content:counter(step);flex:none;width:26px;height:26px;display:grid;place-items:center;border-radius:50%;background:#7cc39d;color:#211f1f;font:600 14px/1 'Jost',sans-serif;transform:translateY(-1px)}
 /* Motion is the product: the system's reduce-motion setting changes nothing here on purpose. The admin
    panel only reports it, so a tester's device can be told apart from a real defect. */
 #receipt-status:empty{display:none}#receipt-panel .receipt-header{justify-content:flex-end}
