@@ -7,7 +7,7 @@ import type { HalloweenSettings } from './halloween';
  */
 export const GLITCH_MIN_GAP = 12;
 /** Cooldown after any glitch: a space filled within this many seconds brings none. */
-export const FILL_GLITCH_GAP = 10;
+export const FILL_GLITCH_GAP = 20;
 
 export class Glitches {
   private active = false;
