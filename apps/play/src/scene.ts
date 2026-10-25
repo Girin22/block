@@ -224,7 +224,14 @@ export class PlayScene {
   }
   get busy() { return this.board.atLimit || !!this.dropping; }
   get cellPixels() { return this.canvas.clientWidth / VIEW_WIDTH; }
-  get activeY() { return this.controlledY ?? this.center + (this.halfHeight - 2.2) - size(this.rotation).h / 2; }
+  get activeY() { return this.controlledY ?? this.center + this.halfHeight - this.spawnDepth(this.rotation) - size(this.rotation).h / 2; }
+  /**
+   * Cells from the top of the view to a waiting block's centre: 2.2, or deeper while the onboarding
+   * holds the block still, so its top edge clears `spawnTop` (the Dynamic Island on an iPhone).
+   */
+  private spawnDepth(rotation: Rotation) {
+    return this.spawnTop === undefined ? 2.2 : Math.max(2.2, this.spawnTop / this.cellPixels + size(rotation).h / 2);
+  }
   get canRelease() {
     // Use the tile's lower edge in the current camera, not the finger or world origin.
     const edge = new THREE.Vector3(this.x + size(this.rotation).w / 2, this.activeY, 0.12).project(this.camera);
@@ -236,6 +243,8 @@ export class PlayScene {
   conceal = false;
   /** Onboarding: the active block waits in place instead of sinking on its own. */
   holdFall = false;
+  /** Onboarding: CSS px from the top of the view that a waiting block's top edge stays below. */
+  spawnTop?: number;
   beginDrag() { this.start(); this.controlledY = this.activeY; this.held = true; this.contactTime = 0; }
   endDrag() { this.held = false; this.contactTime = 0; }
   lower(distance: number) {
@@ -267,7 +276,7 @@ export class PlayScene {
   spawn() {
     this.held = false; this.contactTime = 0;
     this.controlledY = undefined; this.x = SPAWN_X; this.rotation = SPAWN_ROTATION; this.spin = SPAWN_ROTATION * Math.PI / 2;
-    this.active.position.set(SPAWN_X + size(SPAWN_ROTATION).w / 2, this.center + (this.halfHeight - 2.2), 0.12);
+    this.active.position.set(SPAWN_X + size(SPAWN_ROTATION).w / 2, this.center + this.halfHeight - this.spawnDepth(SPAWN_ROTATION), 0.12);
     this.active.rotation.z = this.spin; this.orient();
   }
   drop(done: () => void) {

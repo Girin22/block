@@ -197,7 +197,7 @@ function plain(line: string) { return line.replace(/^_(.*)_$/, '$1'); }
 
 const wait = (seconds: number) => new Promise<void>(resolve => setTimeout(resolve, seconds * 1000));
 
-export interface OnboardingScene { conceal: boolean; holdFall: boolean; readonly activeScreen?: { x: number; y: number; cell: number }; }
+export interface OnboardingScene { conceal: boolean; holdFall: boolean; spawnTop?: number; readonly activeScreen?: { x: number; y: number; cell: number }; }
 /** The game's controls, for the demo hole the guide lays itself. */
 export interface OnboardingPlayer {
   /** Where an upright block would land in each column. */
@@ -303,6 +303,15 @@ export class Onboarding {
     if (!scene) return;
     scene.conceal = this.step === 'intro' || this.holeRunning;
     scene.holdFall = this.step !== 'place' && this.step !== 'restart' && this.step !== 'done' || this.holeRunning || this.settling;
+    // The tutorial holds the block still near the top, where an iPhone's Dynamic Island would cover it,
+    // so until it is done the block waits lower: its top edge on the red button's bottom line. In play
+    // it falls at once from its usual place, so the island does not get in the way there.
+    scene.spawnTop = this.step === 'restart' || this.step === 'done' ? undefined : this.pauseLine();
+  }
+  /** The red button's bottom edge, in CSS px from the top of the game (below the safe area on any phone). */
+  private pauseLine() {
+    const parent = this.root.parentElement, pause = parent?.querySelector('#pause');
+    return parent && pause ? pause.getBoundingClientRect().bottom - parent.getBoundingClientRect().top : undefined;
   }
 
   /** The player rotated the block or moved it sideways. */
