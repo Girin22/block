@@ -57,8 +57,9 @@ export function mountHalloweenPanel(body: HTMLElement, status: HTMLElement) {
       <p class="hint">랜턴: 짙은 밤색에 가장자리 주황 불빛 · 로파이: 노을 진 밤하늘, 달, 안개, 필름 입자</p></div>
     <div class="tuning-row"><div class="row-head"><label>하늘의 등장 효과</label></div>
       ${VISITORS.map(({ key, label }) => `<div class="hw-visitor"><label><input type="checkbox" data-visitor="${key}"> ${label}</label><button type="button" data-visit="${key}">지금 보기</button></div>`).join('')}
-      <div class="hw-range"><label for="hw-visitor-every">평균 간격</label><input type="range" id="hw-visitor-every" min="5" max="60" step="1"><span class="hw-value"></span></div>
-      <p class="hint">켜 둔 효과 중 하나가 평균 간격마다(±40%) 무작위로 지나가요. 마녀가 달을 지날 때는 글리치가 함께 와요(글리치 켜짐일 때).</p></div>
+      <div class="hw-range"><label for="hw-visitor-from">최소 간격</label><input type="range" id="hw-visitor-from" min="5" max="90" step="1"><span class="hw-value"></span></div>
+      <div class="hw-range"><label for="hw-visitor-to">최대 간격</label><input type="range" id="hw-visitor-to" min="5" max="90" step="1"><span class="hw-value"></span></div>
+      <p class="hint">켜 둔 효과마다 따로 최소~최대 간격 사이의 무작위 시간마다 지나가요. 그래서 박쥐와 마녀가 동시에 나올 수도 있어요. 마녀가 달을 지날 때는 글리치가 함께 와요(자동 글리치 켜짐일 때).</p></div>
     <div class="tuning-row"><div class="row-head"><label>로파이 글리치</label></div>
       <div class="tuning-choices" id="hw-glitch" role="radiogroup" aria-label="자동 글리치"><button type="button" role="radio" data-value="1">자동 켜기</button><button type="button" role="radio" data-value="0">끄기</button></div>
       <p class="hw-sub">빈 공간이 채워질 때 1회</p>
@@ -138,7 +139,7 @@ export function mountHalloweenPanel(body: HTMLElement, status: HTMLElement) {
     choices('#hw-glitch-fill', () => halloween.glitchOnFill ? '1' : '0', value => { halloween.glitchOnFill = value === '1'; }),
   ];
 
-  const range = (id: string, key: 'visitorEvery' | 'glitchEvery' | 'glitchStrength' | 'glitchMs', format: (value: number) => string) => {
+  const range = (id: string, key: 'visitorFrom' | 'visitorTo' | 'glitchEvery' | 'glitchStrength' | 'glitchMs', format: (value: number) => string) => {
     const input = section.querySelector<HTMLInputElement>(id)!, label = input.parentElement!.querySelector('.hw-value')!;
     const show = () => { input.value = String(halloween[key]); label.textContent = format(halloween[key]); };
     input.addEventListener('input', () => { changeHalloween(value => { value[key] = Number(input.value); }); label.textContent = format(halloween[key]); saved(); });
@@ -146,7 +147,8 @@ export function mountHalloweenPanel(body: HTMLElement, status: HTMLElement) {
     return show;
   };
   const ranges = [
-    range('#hw-visitor-every', 'visitorEvery', v => `${v}초`),
+    range('#hw-visitor-from', 'visitorFrom', v => `${v}초`),
+    range('#hw-visitor-to', 'visitorTo', v => `${v}초`),
     range('#hw-glitch-every', 'glitchEvery', v => `${v}초`),
     range('#hw-glitch-strength', 'glitchStrength', v => `${Math.round(v * 100)}%`),
     range('#hw-glitch-ms', 'glitchMs', v => `${v}ms`),

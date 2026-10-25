@@ -15,14 +15,14 @@ const WITCH = `<svg viewBox="-4 -6 124 62" aria-hidden="true">
 /**
  * Halloween's sky, behind the pavers (the board is drawn on a clear background while the event is on).
  * The lantern night is a plain deep plum; the lo-fi night is a dusky gradient with a moon, haze and a
- * soft film grain. Now and then a visitor crosses: a few bats, the witch passing the moon, or a
- * jack-o'-lantern whooshing by. Visitors run on the compositor (Web Animations) and only while the
+ * soft film grain. Now and then visitors cross, each on its own random clock: a few bats, the witch
+ * passing the moon, a jack-o'-lantern whooshing by. Visitors run on the compositor (Web Animations) and only while the
  * event is on screen.
  */
 export class NightSky {
   readonly element = document.createElement('div');
   private active = false;
-  private timer = 0;
+  private timers = new Map<Visitor, number>();
   private settings?: HalloweenSettings;
   /** The witch is the sky's big moment; the glitch can answer it. */
   onWitch?: () => void;
@@ -46,16 +46,16 @@ export class NightSky {
     this.schedule();
   }
 
+  /** Each switched-on visitor keeps its own clock, so the bats and the witch may well cross together. */
   private schedule() {
-    clearTimeout(this.timer);
-    const enabled = this.enabled();
-    if (!this.active || document.hidden || !enabled.length || !this.settings) return;
-    const every = this.settings.visitorEvery;
-    this.timer = window.setTimeout(() => {
-      const list = this.enabled();
-      if (list.length) this.visit(list[Math.floor(Math.random() * list.length)]);
-      this.schedule();
-    }, every * (0.6 + Math.random() * 0.8) * 1000);
+    this.timers.forEach(timer => clearTimeout(timer)); this.timers.clear();
+    if (!this.active || document.hidden || !this.settings) return;
+    for (const visitor of this.enabled()) this.next(visitor);
+  }
+  private next(visitor: Visitor) {
+    const { visitorFrom = 20, visitorTo = 30 } = this.settings ?? {};
+    const from = Math.min(visitorFrom, visitorTo), to = Math.max(visitorFrom, visitorTo);
+    this.timers.set(visitor, window.setTimeout(() => { this.visit(visitor); this.next(visitor); }, (from + Math.random() * (to - from)) * 1000));
   }
   private enabled() { return (Object.keys(this.settings?.visitors ?? {}) as Visitor[]).filter(key => this.settings!.visitors[key]); }
 

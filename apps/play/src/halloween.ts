@@ -46,8 +46,9 @@ export interface HalloweenSettings {
   tiles: Record<HalloweenSlot, SlotEntry[]>;
   backdrop: Backdrop;
   visitors: Record<Visitor, boolean>;
-  /** Average seconds between visitors crossing the sky. */
-  visitorEvery: number;
+  /** Each visitor comes on its own clock, every `visitorFrom`-`visitorTo` seconds at random, so two may cross together. */
+  visitorFrom: number;
+  visitorTo: number;
   glitch: boolean;
   /** One glitch as a sealed space starts to fill (its first white filler begins to come down). */
   glitchOnFill: boolean;
@@ -61,8 +62,8 @@ export interface HalloweenSettings {
 
 /**
  * Settled by the planner on 2026-10-25: purple and orange blocks half and half, pumpkins and witches
- * half and half in single gaps, bandages in two-cell gaps; the lantern night with bats and the witch
- * about every 14 s; a glitch only as a sealed space starts to fill. The other drafts stay in the
+ * half and half in single gaps, bandages in two-cell gaps; the lantern night with bats and the witch,
+ * each every 20-30 s on its own; a glitch only as a sealed space starts to fill. The other drafts stay in the
  * library for the panel.
  */
 export const HALLOWEEN_DEFAULTS: Readonly<HalloweenSettings> = {
@@ -73,7 +74,7 @@ export const HALLOWEEN_DEFAULTS: Readonly<HalloweenSettings> = {
   },
   backdrop: 'lantern',
   visitors: { bats: true, witch: true, jack: false },
-  visitorEvery: 14,
+  visitorFrom: 20, visitorTo: 30,
   glitch: false, glitchOnFill: true, glitchEvery: 40, glitchStrength: 0.5, glitchMs: 420,
 };
 
