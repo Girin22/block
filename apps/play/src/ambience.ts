@@ -9,7 +9,7 @@
  * 'off' has no deck either, so choosing it simply fades the ambience out.
  */
 
-export type Environment = 'off' | 'morning' | 'day' | 'night' | 'rain';
+export type Environment = 'off' | 'morning' | 'day' | 'night' | 'rain' | 'halloween';
 export interface Track {
   url: string;
   /** Integrated loudness of the recording, in LUFS. */
@@ -205,6 +205,7 @@ export class Soundscape {
     const context = this.context.state === 'running' ? '' : ` · 오디오 ${this.context.state}`;
     if (this.selected === 'off') return `환경음: 꺼짐${context}`;
     if (this.selected === 'rain') return `환경음: 비${context}`;
+    if (!this.tracks[this.selected]?.tracks.length) return `환경음: 녹음 없음${context}`;
     if (!this.playing) return `환경음: 일시정지${context}`;
     if (deck?.sounding) return `환경음: 재생 중${context}`;
     return `환경음: <b>막힘</b>${deck?.lastError ? ` (${deck.lastError})` : ''}${context}`;

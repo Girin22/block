@@ -4,7 +4,7 @@ import { planFillSounds } from './fill-sound';
 import { dropDuration, dropProgress, fillAltitude, fillGap, fillOpacity, fillTilt, FILL_DELAY, FILL_LANDS, FILL_LIFT, FILL_STAGGER, liftScale } from './drop-motion';
 import { size, WIDTH, SPAWN_ROTATION, SPAWN_X, type Pavement, type Rotation, type Tile } from '../../../packages/play-core';
 
-import { TILE_BLEED, tileImage, tileImages, type TileImage } from './tile-assets';
+import { TILE_BLEED, tileImage, tileSkins, type TileImage, type TileSkin } from './tile-assets';
 import { FallingShadow } from './falling-shadow';
 import { LandingGuide } from './landing-guide';
 import { wetTint, type Rain } from './rain';
@@ -17,6 +17,10 @@ const SETTLE_MS = 1000, IDLE_REDRAW_MS = 250;
 /** Smaller differences than this between frames are not visible, so they do not count as motion. */
 const STILL = 1e-4;
 const DRY_GROUND = new THREE.Color('#2c2929'), WET_GROUND = new THREE.Color('#202427');
+/** Halloween's night: a deep plum-black the lantern glow (style.css) warms from the edges. */
+const NIGHT_GROUND = new THREE.Color('#17131c');
+/** Seconds for the ground to turn to night and back. */
+const NIGHT_FADE = 1.2;
 
 function geometry(rotation: number, white = false) {
   const plane = new THREE.PlaneGeometry((white ? 1 : 2) + TILE_BLEED, 1 + TILE_BLEED);
@@ -36,6 +40,9 @@ export class PlayScene {
   private square = geometry(0, true);
   private textures = new Map<string, THREE.Texture>();
   private materials = new Map<string, THREE.MeshBasicMaterial>();
+  private skin: TileSkin = 'everyday';
+  /** 0 = everyday ground, 1 = Halloween night; eases towards the skin. */
+  private night = 0;
   private settled = new Map<number, THREE.Mesh>();
   private active: THREE.Mesh;
   private ghost: THREE.Mesh;
@@ -59,7 +66,7 @@ export class PlayScene {
   private dropping?: { from: THREE.Vector3; to: THREE.Vector3; elapsed: number; duration: number; done: () => void };
   private observer: ResizeObserver;
   /** What the last drawn frame showed, to skip redrawing a still picture (battery and heat). */
-  private shown = new Float64Array(18);
+  private shown = new Float64Array(19);
   private lastChange = 0;
   private lastDraw = -Infinity;
   /** Fires as a white filler seats on screen; the game plays its sound here. */
@@ -76,15 +83,24 @@ export class PlayScene {
     this.spawn();
     this.frame(0);
   }
+  private texture(key: TileImage) {
+    const texture = new THREE.TextureLoader().load(tileSkins[this.skin][key], () => { this.lastChange = performance.now(); });
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.anisotropy = Math.min(4, this.renderer.capabilities.getMaxAnisotropy());
+    this.textures.get(key)?.dispose(); this.textures.set(key, texture);
+    return texture;
+  }
   private material(key: TileImage) {
-    if (!this.materials.has(key)) {
-      const texture = new THREE.TextureLoader().load(tileImages[key]);
-      texture.colorSpace = THREE.SRGBColorSpace;
-      texture.anisotropy = Math.min(4, this.renderer.capabilities.getMaxAnisotropy());
-      this.textures.set(key, texture);
-      this.materials.set(key, new THREE.MeshBasicMaterial({ map: texture, transparent: true, alphaTest: .02, depthWrite: false, toneMapped: false }));
-    }
+    if (!this.materials.has(key)) this.materials.set(key, new THREE.MeshBasicMaterial({ map: this.texture(key), transparent: true, alphaTest: .02, depthWrite: false, toneMapped: false }));
     return this.materials.get(key)!;
+  }
+  /** Re-dresses every paver on the board, the falling block and the frame in another skin's artwork. */
+  setSkin(skin: TileSkin, instant = false) {
+    if (instant) this.night = skin === 'halloween' ? 1 : 0;
+    if (skin === this.skin) return;
+    this.skin = skin;
+    for (const [key, material] of this.materials) { material.map = this.texture(key as TileImage); material.needsUpdate = true; }
+    // Fillers still being lowered carry their own fading copy; they take the new artwork as they seat.
   }
   private orient() {
     this.active.geometry = this.ghost.geometry = this.dominoes[this.rotation];
@@ -254,12 +270,17 @@ export class PlayScene {
     if (!this.dropping && !this.held) this.board.advanceFloor(Math.max(0, Math.floor(this.center - this.halfHeight + 0.5)));
     this.camera.position.set(WIDTH / 2, this.center, 22); this.camera.lookAt(WIDTH / 2, this.center, 0);
     this.updateFrame();
+    // Like the weather, the night turns on its own clock, over a paused board too.
+    const nightTarget = this.skin === 'halloween' ? 1 : 0;
+    this.night = nightTarget > this.night ? Math.min(nightTarget, this.night + elapsed / NIGHT_FADE) : Math.max(nightTarget, this.night - elapsed / NIGHT_FADE);
+    const ground = this.scene.background as THREE.Color;
+    ground.lerpColors(DRY_GROUND, NIGHT_GROUND, this.night);
     if (this.rain) {
       // Weather keeps its own clock: it goes on falling over a paused board.
       this.rain.frame(elapsed, { widthPx: this.canvas.clientWidth, heightPx: this.canvas.clientHeight, cellPx: this.cellPixels, left: (WIDTH - VIEW_WIDTH) / 2, top: this.center + this.halfHeight });
       const [r, g, b] = wetTint(this.rain.wetness);
       for (const material of this.materials.values()) material.color.setRGB(r, g, b, THREE.SRGBColorSpace);
-      (this.scene.background as THREE.Color).lerpColors(DRY_GROUND, WET_GROUND, this.rain.wetness);
+      ground.lerp(WET_GROUND, this.rain.wetness);
     }
     this.active.visible = !this.board.atLimit && !this.paused && !this.conceal;
     if (this.paused || this.conceal) this.ghost.visible = false;
@@ -318,7 +339,7 @@ export class PlayScene {
     const a = this.active, g = this.ghost, values = [
       this.center, a.position.x, a.position.y, a.rotation.z, a.scale.x, +a.visible,
       g.position.x, g.position.y, g.rotation.z, +g.visible, this.settled.size, this.board.tiles.length,
-      this.rain?.wetness ?? 0, this.canvas.width, this.canvas.height, this.frameTiles.size, +this.paused, +this.guide.ready,
+      this.rain?.wetness ?? 0, this.canvas.width, this.canvas.height, this.frameTiles.size, +this.paused, +this.guide.ready, this.night,
     ];
     let moved = filling;
     for (let i = 0; i < values.length; i++) {
