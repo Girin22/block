@@ -4,7 +4,7 @@ import { planFillSounds } from './fill-sound';
 import { dropDuration, dropProgress, fillAltitude, fillGap, fillOpacity, fillTilt, FILL_DELAY, FILL_LANDS, FILL_LIFT, FILL_STAGGER, liftScale } from './drop-motion';
 import { size, WIDTH, SPAWN_ROTATION, SPAWN_X, type Pavement, type Rotation, type Tile } from '../../../packages/play-core';
 
-import { TILE_BLEED, tileImage, tileSkins, type TileImage, type TileSkin } from './tile-assets';
+import { TILE_BLEED, tileArtwork, tileImage, type Artwork, type TileSkin } from './tile-assets';
 import { FallingShadow } from './falling-shadow';
 import { LandingGuide } from './landing-guide';
 import { wetTint, type Rain } from './rain';
@@ -17,10 +17,34 @@ const SETTLE_MS = 1000, IDLE_REDRAW_MS = 250;
 /** Smaller differences than this between frames are not visible, so they do not count as motion. */
 const STILL = 1e-4;
 const DRY_GROUND = new THREE.Color('#2c2929'), WET_GROUND = new THREE.Color('#202427');
-/** Halloween's night: a deep plum-black the lantern glow (style.css) warms from the edges. */
-const NIGHT_GROUND = new THREE.Color('#17131c');
-/** Seconds for the ground to turn to night and back. */
-const NIGHT_FADE = 1.2;
+/** Frame pavers are not board tiles; these ids keep their event artwork steady and apart from the board's. */
+const FRAME_ID = 1_000_000;
+
+/**
+ * The lo-fi glitch, drawn over the finished frame only while one is running: a few horizontal bands
+ * tear sideways, red and blue part a little, and faint scanlines show. Nothing flashes or brightens.
+ */
+const GLITCH_SHADER = {
+  vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
+  fragmentShader: `uniform sampler2D map; uniform float amount; uniform float time; uniform float seed; varying vec2 vUv;
+    float rand(vec2 c) { return fract(sin(dot(c, vec2(12.9898, 78.233))) * 43758.5453); }
+    void main() {
+      vec2 uv = vUv;
+      float tick = floor(time * 16.0), band = floor(uv.y * 14.0);
+      float torn = step(1.0 - 0.3 * amount, rand(vec2(band, tick + seed)));
+      float shift = torn * (rand(vec2(band + 7.0, tick)) - 0.5) * 0.08 * amount;
+      uv.x += shift;
+      float split = 0.005 * amount + abs(shift) * 0.35;
+      vec4 c = texture2D(map, uv), r = texture2D(map, uv + vec2(split, 0.0)), b = texture2D(map, uv - vec2(split, 0.0));
+      float scan = 1.0 - 0.07 * amount * step(0.5, fract(gl_FragCoord.y * 0.25));
+      // The frame holds premultiplied colour: convert it straight, then multiply back, so see-through
+      // parts (the landing silhouette, shadows) keep their brightness.
+      float a = max(c.a, max(r.a, b.a));
+      gl_FragColor = vec4(a > 0.0 ? vec3(r.r, c.g, b.b) * scan / a : vec3(0.0), a);
+      #include <colorspace_fragment>
+      gl_FragColor.rgb *= gl_FragColor.a;
+    }`,
+};
 
 function geometry(rotation: number, white = false) {
   const plane = new THREE.PlaneGeometry((white ? 1 : 2) + TILE_BLEED, 1 + TILE_BLEED);
@@ -41,8 +65,10 @@ export class PlayScene {
   private textures = new Map<string, THREE.Texture>();
   private materials = new Map<string, THREE.MeshBasicMaterial>();
   private skin: TileSkin = 'everyday';
-  /** 0 = everyday ground, 1 = Halloween night; eases towards the skin. */
-  private night = 0;
+  private glitchFrom = 0;
+  private glitchUntil = 0;
+  private glitchAmount = 0;
+  private post?: { target: THREE.WebGLRenderTarget; scene: THREE.Scene; camera: THREE.Camera; material: THREE.ShaderMaterial };
   private settled = new Map<number, THREE.Mesh>();
   private active: THREE.Mesh;
   private ghost: THREE.Mesh;
@@ -66,7 +92,7 @@ export class PlayScene {
   private dropping?: { from: THREE.Vector3; to: THREE.Vector3; elapsed: number; duration: number; done: () => void };
   private observer: ResizeObserver;
   /** What the last drawn frame showed, to skip redrawing a still picture (battery and heat). */
-  private shown = new Float64Array(19);
+  private shown = new Float64Array(18);
   private lastChange = 0;
   private lastDraw = -Infinity;
   /** Fires as a white filler seats on screen; the game plays its sound here. */
@@ -76,47 +102,92 @@ export class PlayScene {
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
     this.scene.background = DRY_GROUND.clone();
     this.fallingShadow = new FallingShadow(); this.scene.add(this.fallingShadow.mesh);
-    this.active = new THREE.Mesh(this.dominoes[0], this.material('horizontal')); this.scene.add(this.active);
+    this.active = new THREE.Mesh(this.dominoes[0], this.material(this.activeArtwork())); this.scene.add(this.active);
     this.ghost = new THREE.Mesh(this.dominoes[0], new THREE.MeshBasicMaterial({ map: this.guide.texture('horizontal'), transparent: true, depthWrite: false, toneMapped: false }));
     this.ghost.scale.z = 0.04; this.scene.add(this.ghost);
     this.observer = new ResizeObserver(() => this.resize()); this.observer.observe(canvas); this.resize();
     this.spawn();
     this.frame(0);
   }
-  private texture(key: TileImage) {
-    const texture = new THREE.TextureLoader().load(tileSkins[this.skin][key], () => { this.lastChange = performance.now(); });
+  /** One material per picture, shared by every paver wearing it. An upright picture is turned on a canvas to lie flat. */
+  private material({ url, turn }: Artwork) {
+    const key = `${turn ? 'turn:' : ''}${url}`;
+    let material = this.materials.get(key);
+    if (material) return material;
+    const texture = new THREE.Texture();
     texture.colorSpace = THREE.SRGBColorSpace;
     texture.anisotropy = Math.min(4, this.renderer.capabilities.getMaxAnisotropy());
-    this.textures.get(key)?.dispose(); this.textures.set(key, texture);
-    return texture;
+    const image = new Image();
+    image.onload = () => {
+      if (turn) {
+        const canvas = document.createElement('canvas'); canvas.width = image.naturalHeight; canvas.height = image.naturalWidth;
+        const context = canvas.getContext('2d')!; context.translate(canvas.width, 0); context.rotate(Math.PI / 2); context.drawImage(image, 0, 0);
+        texture.image = canvas;
+      } else texture.image = image;
+      texture.needsUpdate = true; this.lastChange = performance.now();
+    };
+    image.src = url;
+    this.textures.set(key, texture);
+    material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, alphaTest: .02, depthWrite: false, toneMapped: false });
+    this.materials.set(key, material);
+    return material;
   }
-  private material(key: TileImage) {
-    if (!this.materials.has(key)) this.materials.set(key, new THREE.MeshBasicMaterial({ map: this.texture(key), transparent: true, alphaTest: .02, depthWrite: false, toneMapped: false }));
-    return this.materials.get(key)!;
+  private activeArtwork() {
+    const { w, h } = size(this.rotation);
+    // The falling block becomes the next tile, so it already wears that tile's paver.
+    return tileArtwork({ id: this.board.tiles.length + 1, white: false, w, h }, this.skin);
   }
-  /** Re-dresses every paver on the board, the falling block and the frame in another skin's artwork. */
-  setSkin(skin: TileSkin, instant = false) {
-    if (instant) this.night = skin === 'halloween' ? 1 : 0;
+  /** An event skin (or everyday). The event's own night sky shows through a clear background. */
+  setSkin(skin: TileSkin) {
     if (skin === this.skin) return;
     this.skin = skin;
-    for (const [key, material] of this.materials) { material.map = this.texture(key as TileImage); material.needsUpdate = true; }
+    this.scene.background = skin === 'halloween' ? null : DRY_GROUND.clone();
+    this.redress();
+  }
+  /** Puts every paver (board, falling block, frame) in its current artwork, after a skin or weight change. */
+  redress() {
+    for (const mesh of this.settled.values()) if (!mesh.userData.shadow) mesh.material = this.material(tileArtwork(mesh.userData.tile, this.skin));
+    for (const mesh of this.frameTiles.values()) mesh.material = this.material(tileArtwork(mesh.userData.tile, this.skin));
     // Fillers still being lowered carry their own fading copy; they take the new artwork as they seat.
+    this.orient(); this.lastChange = performance.now();
+  }
+  /** A lo-fi glitch over the picture for `ms` milliseconds; `amount` 0-1. */
+  glitch(amount: number, ms: number) {
+    const now = performance.now();
+    this.glitchFrom = now; this.glitchUntil = now + ms; this.glitchAmount = amount;
+  }
+  private renderGlitch(now: number) {
+    const size = this.renderer.getDrawingBufferSize(new THREE.Vector2());
+    if (!this.post) {
+      const material = new THREE.ShaderMaterial({ ...GLITCH_SHADER, uniforms: { map: { value: null }, amount: { value: 0 }, time: { value: 0 }, seed: { value: 0 } }, blending: THREE.NoBlending, depthTest: false, depthWrite: false });
+      const scene = new THREE.Scene(); scene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), material));
+      this.post = { target: new THREE.WebGLRenderTarget(size.x, size.y), scene, camera: new THREE.Camera(), material };
+    }
+    const { target, scene, camera, material } = this.post;
+    if (target.width !== size.x || target.height !== size.y) target.setSize(size.x, size.y);
+    // Eases in and out over its length so it never starts or stops as a jolt.
+    const t = (now - this.glitchFrom) / (this.glitchUntil - this.glitchFrom);
+    material.uniforms.map.value = target.texture;
+    material.uniforms.amount.value = this.glitchAmount * Math.sin(Math.PI * Math.min(1, Math.max(0, t)));
+    material.uniforms.time.value = now / 1000; material.uniforms.seed.value = this.glitchFrom % 97;
+    this.renderer.setRenderTarget(target); this.renderer.render(this.scene, this.camera);
+    this.renderer.setRenderTarget(null); this.renderer.render(scene, camera);
   }
   private orient() {
     this.active.geometry = this.ghost.geometry = this.dominoes[this.rotation];
-    const material = this.material(this.rotation % 2 ? 'vertical' : 'horizontal');
+    const material = this.material(this.activeArtwork());
     this.active.material = material;
     (this.ghost.material as THREE.MeshBasicMaterial).map = this.guide.texture(this.rotation % 2 ? 'vertical' : 'horizontal');
   }
   private updateFrame() {
     const visible = new Set<string>();
-    const add = (key: string, x: number, y: number, vertical: boolean) => {
+    const add = (key: string, id: number, x: number, y: number, vertical: boolean) => {
       visible.add(key);
       let mesh = this.frameTiles.get(key);
       if (!mesh) {
-        const rotation = vertical ? 1 : 0;
-        mesh = new THREE.Mesh(this.dominoes[rotation], this.material(vertical ? 'vertical' : 'horizontal'));
-        mesh.rotation.z = rotation * Math.PI / 2; mesh.renderOrder = -1;
+        const rotation = vertical ? 1 : 0, tile = { id, white: false, w: vertical ? 1 : 2, h: vertical ? 2 : 1 };
+        mesh = new THREE.Mesh(this.dominoes[rotation], this.material(tileArtwork(tile, this.skin)));
+        mesh.rotation.z = rotation * Math.PI / 2; mesh.renderOrder = -1; mesh.userData.tile = tile;
         this.scene.add(mesh); this.frameTiles.set(key, mesh);
       }
       mesh.position.set(x, y, 0);
@@ -125,11 +196,11 @@ export class PlayScene {
     const bottom = Math.floor((this.center - this.halfHeight) / 2) - 1;
     const top = Math.ceil((this.center + this.halfHeight) / 2) + 1;
     for (let row = bottom; row <= top; row++) {
-      add(`left-${row}`, -.5, row * 2 + 1, true);
-      add(`right-${row}`, WIDTH + .5, row * 2 + 1, true);
+      add(`left-${row}`, FRAME_ID + row * 2, -.5, row * 2 + 1, true);
+      add(`right-${row}`, FRAME_ID + row * 2 + 1, WIDTH + .5, row * 2 + 1, true);
     }
     // The bottom row belongs to the real ground only. Higher up, the pavement's own gaps show.
-    if (this.center - this.halfHeight < 1) for (let column = -2; column < WIDTH + 2; column += 2) add(`bottom-${column}`, column + 1, -.5, false);
+    if (this.center - this.halfHeight < 1) for (let column = -2; column < WIDTH + 2; column += 2) add(`bottom-${column}`, FRAME_ID * 2 + column, column + 1, -.5, false);
     for (const [key, mesh] of this.frameTiles) {
       if (!visible.has(key)) { this.scene.remove(mesh); this.frameTiles.delete(key); }
     }
@@ -217,19 +288,19 @@ export class PlayScene {
     const plan = planFillSounds(audible);
     let order = 0;
     for (const tile of tiles) {
-      const image = tileImage(tile);
-      const mesh = new THREE.Mesh(tile.white && tile.w === 1 && tile.h === 1 ? this.square : this.dominoes[tile.rotation], this.material(image));
+      const image = tileImage(tile), material = this.material(tileArtwork(tile, this.skin));
+      const mesh = new THREE.Mesh(tile.white && tile.w === 1 && tile.h === 1 ? this.square : this.dominoes[tile.rotation], material);
       mesh.position.set(tile.x + tile.w / 2, tile.y + tile.h / 2, 0);
       mesh.rotation.z = tile.rotation * Math.PI / 2;
       mesh.renderOrder = tile.id;
-      mesh.userData.born = this.animationTime; mesh.userData.white = tile.white; mesh.userData.image = image;
+      mesh.userData.born = this.animationTime; mesh.userData.white = tile.white; mesh.userData.tile = tile;
       mesh.userData.baseY = tile.y; mesh.userData.height = tile.h;
       this.scene.add(mesh); this.settled.set(tile.id, mesh);
       if (!tile.white || !animate) continue;
       // Lowered from just above: its own fading material and shadow exist only until it seats.
       mesh.userData.born = this.animationTime + delay + order * FILL_STAGGER / speed; mesh.userData.speed = speed; mesh.userData.sound = plan.seats.has(order);
       mesh.userData.spin = mesh.rotation.z; order++;
-      const material = this.material(image).clone(); material.opacity = 0; mesh.material = material;
+      const fading = material.clone(); fading.opacity = 0; mesh.material = fading;
       const shadow = this.fallingShadow.spawn(image); shadow.renderOrder = tile.id - .5;
       mesh.userData.shadow = shadow; this.scene.add(shadow);
     }
@@ -238,7 +309,7 @@ export class PlayScene {
     const shadow = mesh.userData.shadow as THREE.Mesh | undefined;
     if (!shadow) return;
     this.scene.remove(shadow); (shadow.material as THREE.Material).dispose();
-    (mesh.material as THREE.Material).dispose(); mesh.material = this.material(mesh.userData.image as TileImage);
+    (mesh.material as THREE.Material).dispose(); mesh.material = this.material(tileArtwork(mesh.userData.tile, this.skin));
     mesh.position.set(mesh.position.x, mesh.userData.baseY + mesh.userData.height / 2, 0); mesh.scale.set(1, 1, 1);
     mesh.rotation.z = mesh.userData.spin; mesh.userData.shadow = undefined;
   }
@@ -253,7 +324,9 @@ export class PlayScene {
     for (const mesh of this.settled.values()) this.seat(mesh);
     this.dominoes.forEach(geometry => geometry.dispose()); this.square.dispose(); this.fallingShadow.dispose(); this.guide.dispose();
     (this.ghost.material as THREE.Material).dispose();
-    this.materials.forEach(material => material.dispose()); this.textures.forEach(texture => texture.dispose()); this.renderer.dispose();
+    this.materials.forEach(material => material.dispose()); this.textures.forEach(texture => texture.dispose());
+    if (this.post) { this.post.target.dispose(); this.post.material.dispose(); }
+    this.renderer.dispose();
   }
   /** Where the camera settles: the top of the stack held at the middle of the screen. */
   private get targetCenter() { return Math.max(this.halfHeight - 0.12, this.board.height + 0.6); }
@@ -270,17 +343,12 @@ export class PlayScene {
     if (!this.dropping && !this.held) this.board.advanceFloor(Math.max(0, Math.floor(this.center - this.halfHeight + 0.5)));
     this.camera.position.set(WIDTH / 2, this.center, 22); this.camera.lookAt(WIDTH / 2, this.center, 0);
     this.updateFrame();
-    // Like the weather, the night turns on its own clock, over a paused board too.
-    const nightTarget = this.skin === 'halloween' ? 1 : 0;
-    this.night = nightTarget > this.night ? Math.min(nightTarget, this.night + elapsed / NIGHT_FADE) : Math.max(nightTarget, this.night - elapsed / NIGHT_FADE);
-    const ground = this.scene.background as THREE.Color;
-    ground.lerpColors(DRY_GROUND, NIGHT_GROUND, this.night);
     if (this.rain) {
       // Weather keeps its own clock: it goes on falling over a paused board.
       this.rain.frame(elapsed, { widthPx: this.canvas.clientWidth, heightPx: this.canvas.clientHeight, cellPx: this.cellPixels, left: (WIDTH - VIEW_WIDTH) / 2, top: this.center + this.halfHeight });
       const [r, g, b] = wetTint(this.rain.wetness);
       for (const material of this.materials.values()) material.color.setRGB(r, g, b, THREE.SRGBColorSpace);
-      ground.lerp(WET_GROUND, this.rain.wetness);
+      if (this.scene.background) (this.scene.background as THREE.Color).lerpColors(DRY_GROUND, WET_GROUND, this.rain.wetness);
     }
     this.active.visible = !this.board.atLimit && !this.paused && !this.conceal;
     if (this.paused || this.conceal) this.ghost.visible = false;
@@ -327,7 +395,11 @@ export class PlayScene {
       // The shadow, not the travel, carries the height: 1.2 cells is its full separation.
       this.fallingShadow.updateSpawned(shadow, mesh, 1.2 * altitude, opacity, tilt);
     }
-    if (this.changed(now, filling)) { this.renderer.render(this.scene, this.camera); this.lastDraw = now; }
+    const glitching = now < this.glitchUntil;
+    if (this.changed(now, filling || glitching)) {
+      if (glitching) this.renderGlitch(now); else this.renderer.render(this.scene, this.camera);
+      this.lastDraw = now;
+    }
     this.raf = requestAnimationFrame(this.frame);
   };
   /**
@@ -339,7 +411,7 @@ export class PlayScene {
     const a = this.active, g = this.ghost, values = [
       this.center, a.position.x, a.position.y, a.rotation.z, a.scale.x, +a.visible,
       g.position.x, g.position.y, g.rotation.z, +g.visible, this.settled.size, this.board.tiles.length,
-      this.rain?.wetness ?? 0, this.canvas.width, this.canvas.height, this.frameTiles.size, +this.paused, +this.guide.ready, this.night,
+      this.rain?.wetness ?? 0, this.canvas.width, this.canvas.height, this.frameTiles.size, +this.paused, +this.guide.ready,
     ];
     let moved = filling;
     for (let i = 0; i < values.length; i++) {

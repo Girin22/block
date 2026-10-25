@@ -1,5 +1,6 @@
 import { onTuning, setTuning, tuning, TUNING_DEFAULTS, TUNING_FIELDS, TUNING_GROUPS, type Tuning, type TuningField } from './tuning';
 import { ONBOARDING_DEFAULTS, ONBOARDING_PAGES, onboardingText, resetOnboarding, type OnboardingPage } from './onboarding';
+import { halloweenForCopy, mountHalloweenPanel } from './halloween-panel';
 
 /** Kept only on the tester's own device, so a planner's values survive reloads while polishing. */
 const STORAGE_KEY = 'blockstep.tuning', TEXT_KEY = 'blockstep.onboardingText';
@@ -76,6 +77,9 @@ export function mountTuningPanel(admin: HTMLElement) {
   admin.classList.add('has-tuning');
 
   const status = sheet.querySelector<HTMLElement>('.tuning-status')!;
+  // The event drafts under review sit right below the device readout.
+  mountHalloweenPanel(sheet.querySelector('.tuning-body')!, status);
+  sheet.querySelector('#tuning-device')!.after(sheet.querySelector('#halloween-panel')!);
   for (const field of TUNING_FIELDS) {
     const element = sheet.querySelector<HTMLElement>(`[data-key="${field.key}"]`)!;
     if (field.choices) {
@@ -131,7 +135,7 @@ export function mountTuningPanel(admin: HTMLElement) {
   sheet.querySelector('#tuning-copy')!.addEventListener('click', async () => {
     const text = TUNING_FIELDS.map(field => `${field.label}: ${tuning[field.key]}${field.unit}`).join('\n')
       + '\n\n' + ONBOARDING_PAGES.map(({ key, label }) => `[${label}]\n${onboardingText[key]}`).join('\n\n')
-      + `\n\n${JSON.stringify({ tuning, onboardingText })}`;
+      + `\n\n${JSON.stringify({ tuning, onboardingText, halloween: halloweenForCopy() })}`;
     try { await navigator.clipboard.writeText(text); status.textContent = '복사했어요. 개발자에게 붙여 넣어 보내 주세요.'; }
     catch { status.textContent = text; }
   });

@@ -9,7 +9,10 @@ import { showSavedToast } from './saved-toast';
 import { mountReceiptPreview } from './receipt-preview';
 import { PauseIcon } from './pause-icon';
 import { PlayTimer } from './play-timer';
-import { tileImages, tileSkins } from './tile-assets';
+import { tileImages } from './tile-assets';
+import { leadPaver, onCue, onHalloween, PAVER_LIBRARY } from './halloween';
+import { NightSky } from './night-sky';
+import { Glitches } from './glitches';
 import { eventOpen, HALLOWEEN } from './events';
 import { Rain } from './rain';
 import { RainAmbience } from './rain-sound';
@@ -104,6 +107,15 @@ canvas.after(weather); const rain = new Rain(weather, rainAmbience);
 // Halloween's lantern light: a warm glow breathing in from the screen's edges over the night ground.
 const lantern = document.createElement('div'); lantern.id = 'lantern'; lantern.setAttribute('aria-hidden', 'true');
 weather.after(lantern);
+// Halloween's sky sits behind the board, which is drawn on a clear background while the event is on.
+const nightSky = new NightSky(PAVER_LIBRARY.find(paver => paver.id === 'pumpkin')!.url);
+canvas.before(nightSky.element);
+let glitchEnd = 0;
+const glitches = new Glitches((amount, ms) => {
+  view?.glitch(amount, ms);
+  play.classList.add('glitching'); clearTimeout(glitchEnd); glitchEnd = window.setTimeout(() => play.classList.remove('glitching'), ms);
+});
+nightSky.onWitch = () => glitches.cue();
 // The planner's saved values and onboarding copy load with the admin panel, before the intro starts.
 let adminReady: Promise<unknown> = Promise.resolve();
 if (admin) {
@@ -173,7 +185,7 @@ const noWebGL = import.meta.env.DEV ? new URLSearchParams(location.search).get('
 function createScene() {
   try {
     if (noWebGL !== null) throw new Error('WebGL turned off with ?nowebgl');
-    view = new PlayScene(canvas, board, drop, rain); view.aim(x, rotation); view.setSkin(skin(), true);
+    view = new PlayScene(canvas, board, drop, rain); view.aim(x, rotation); view.setSkin(skin());
     view.onFillSeat = () => { if (!paused && !document.hidden) sound.place(true); };
     if (import.meta.env.DEV && board.tiles.length) view.add(board.tiles.filter(tile => tile.y >= board.height - 24), false);
   }
@@ -321,9 +333,9 @@ function showEnvironment() {
 function chooseEnvironment(environment: Environment) {
   soundscape.select(environment); rain.set(environment === 'rain');
   // An event dresses the board, the pause screen's counters and the light; the others keep the everyday look.
-  view?.setSkin(skin()); play.classList.toggle('halloween', environment === 'halloween');
-  document.querySelector<HTMLImageElement>('.stat-icon')!.src = tileSkins[skin()].vertical;
-  document.querySelector<HTMLImageElement>('.stat-icon.small')!.src = tileSkins[skin()].center;
+  const event = environment === 'halloween';
+  view?.setSkin(skin()); play.classList.toggle('halloween', event);
+  nightSky.setActive(event); glitches.setActive(event); showStatIcons();
   // Unlocking inside the tap lets the rain recording start later, when play resumes.
   if (environment === 'rain') rainAmbience.unlock();
   showEnvironment();
@@ -337,6 +349,25 @@ document.querySelector<HTMLElement>('#environment')!.addEventListener('keydown',
   chooseEnvironment(ENVIRONMENTS[index].id); environmentButtons[index].focus();
 });
 showEnvironment();
+/** The pause screen's counters show the slot's most likely event paver while an event is on. */
+function showStatIcons() {
+  const event = skin() === 'halloween';
+  document.querySelector<HTMLImageElement>('.stat-icon')!.src = (event && leadPaver('block')?.url) || tileImages.vertical;
+  document.querySelector<HTMLImageElement>('.stat-icon.small')!.src = (event && leadPaver('single')?.url) || tileImages.center;
+}
+// The planner's Halloween edits (admin panel) apply at once: pavers, sky, glitch timing.
+onHalloween(settings => {
+  view?.redress(); nightSky.apply(settings); glitches.apply(settings); showStatIcons();
+  play.dataset.backdrop = settings.backdrop;
+});
+// "Try it now" from the panel. A visitor needs the event's sky, so it switches to Halloween first.
+onCue(value => {
+  if (value === 'glitch') { glitches.now(); return; }
+  if (soundscape.environment !== 'halloween') chooseEnvironment('halloween');
+  nightSky.visit(value);
+});
+// Admin builds: G glitches on demand, to try timings against the music.
+if (admin) document.addEventListener('keydown', event => { if (event.code === 'KeyG' && !(event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement)) glitches.now(); });
 function closeReceipt() {
   generationAbort?.abort(); generationAbort = undefined;
   disposePreview?.(); disposePreview = undefined;
