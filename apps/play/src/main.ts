@@ -29,6 +29,8 @@ import hanokAlleyURL from '../../../assets/audio/거리/L03256-004.m4a?url';
 import seonbiAlleyURL from '../../../assets/audio/거리/L03258-004.m4a?url';
 import pohangMarketURL from '../../../assets/audio/거리/L03314-004.m4a?url';
 import ulsanStreetURL from '../../../assets/audio/거리/L03320-004.m4a?url';
+import halloweenLofiURL from '../../../assets/audio/할로윈/halloween-lofi.m4a?url';
+import misterioLofiURL from '../../../assets/audio/할로윈/misterio-lofi.m4a?url';
 import { environmentIcons, type PickedEnvironment } from './environment-icons';
 import { onTuning } from './tuning';
 import { installNative, isNativeApp, platform, saveExport } from './native';
@@ -138,7 +140,9 @@ const sound = new PlaySound({ pause: pausePopURL, resume: resumePopURL }, [stone
 // night were dropped from the app on 2026-10-01; their recordings stay in assets/audio, out of the build.
 const soundscape = new Soundscape({
   day: { repeat: false, tracks: [{ url: hanokAlleyURL, lufs: -25.6 }, { url: seonbiAlleyURL, lufs: -25.7 }, { url: pohangMarketURL, lufs: -25.9 }, { url: ulsanStreetURL, lufs: -26.4 }] },
-  // halloween: its recording is still being chosen; until then the event is quiet.
+  // Two lo-fi pieces (Pixabay Content License) in order, crossed over at their ends so they run as one
+  // loop. Music sits 5 dB above the ambience level, and swells in slowly the first time it is heard.
+  halloween: { repeat: false, ordered: true, fadeIn: 10, tracks: [{ url: halloweenLofiURL, lufs: -14.7, trim: 5 }, { url: misterioLofiURL, lufs: -19.1, trim: 5 }] },
 });
 /** The pavers' artwork follows the environment: only an event has its own. */
 const skin = () => soundscape.environment === 'halloween' ? 'halloween' : 'everyday';

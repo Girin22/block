@@ -81,9 +81,9 @@ class Deck {
   private track: number;
   stopTimer = 0;
 
-  constructor(private context: AudioContext, destination: AudioNode, private tracks: Track[], private repeat: boolean) {
+  constructor(private context: AudioContext, destination: AudioNode, private tracks: Track[], private repeat: boolean, private ordered = false) {
     this.level = context.createGain(); this.level.connect(destination);
-    this.track = nextTrack(tracks.length, -1);
+    this.track = ordered ? 0 : nextTrack(tracks.length, -1);
     for (let i = 0; i < 2; i++) {
       const element = new Audio(); element.preload = 'auto'; element.loop = false;
       const trim = context.createGain(), fade = context.createGain(); fade.gain.value = 0;
@@ -149,7 +149,7 @@ class Deck {
     for (const voice of this.voices) { voice.fade.gain.cancelScheduledValues(0); voice.fade.gain.value = 0; }
   }
 
-  private following(track: number) { return this.repeat ? track : nextTrack(this.tracks.length, track); }
+  private following(track: number) { return this.repeat ? track : this.ordered ? (track + 1) % this.tracks.length : nextTrack(this.tracks.length, track); }
 
   private load(voice: Voice, track: number) {
     voice.track = track; voice.trim.gain.value = trackGain(this.tracks[track].lufs, this.tracks[track].trim);
@@ -185,6 +185,13 @@ class Deck {
   }
 }
 
+/**
+ * How an environment plays its recordings. `ordered` plays them in the listed order, round and round,
+ * so several pieces of music run as one long loop (the crossovers join them); otherwise they shuffle.
+ * `fadeIn` is how many seconds the environment takes to swell in the first time it is heard.
+ */
+export interface DeckSpec { tracks: Track[]; repeat: boolean; ordered?: boolean; fadeIn?: number; }
+
 /** One audio context for every environment; decks are built the first time they are needed. */
 export class Soundscape {
   private context?: AudioContext;
@@ -193,8 +200,20 @@ export class Soundscape {
   private selected: Environment = 'day';
   private playing = false;
   private suspendTimer = 0;
+  /** Environments already heard once; only the first entrance takes the slow swell. */
+  private introduced = new Set<Environment>();
 
-  constructor(private tracks: Partial<Record<Environment, { tracks: Track[]; repeat: boolean }>>) {}
+  constructor(private tracks: Partial<Record<Environment, DeckSpec>>) {}
+
+  /** Brings a deck to full level: slowly the first time if its spec asks, otherwise over `seconds`. */
+  private bringIn(environment: Environment, deck: Deck, now: number, seconds: number) {
+    const level = deck.level.gain, fadeIn = this.tracks[environment]?.fadeIn;
+    level.cancelScheduledValues(now);
+    if (fadeIn && !this.introduced.has(environment)) level.setValueCurveAtTime(fadeInCurve(), now, fadeIn);
+    else if (seconds > 0) { level.setValueAtTime(0, now); level.linearRampToValueAtTime(1, now + seconds); }
+    else level.setValueAtTime(1, now);
+    this.introduced.add(environment);
+  }
 
   get environment() { return this.selected; }
 
@@ -225,8 +244,10 @@ export class Soundscape {
       if (this.playing) { deck?.play(); return; }
       clearTimeout(this.suspendTimer); this.playing = true;
       if (deck && REDRAW_ON_RESUME && !first) deck.redraw();
-      if (deck) { deck.level.gain.cancelScheduledValues(0); deck.level.gain.value = 1; deck.play(); }
       const now = this.context.currentTime, gain = this.master.gain;
+      // The very first start already swells in on the master; a deck's own slow entrance is for later ones
+      // (choosing Halloween on the pause screen and resuming, for one).
+      if (deck) { if (first) this.introduced.add(this.selected); this.bringIn(this.selected, deck, now, 0); deck.play(); }
       gain.cancelScheduledValues(now);
       // The curve starts from silence on its own; a value set at the same instant would overlap it.
       if (first) gain.setValueCurveAtTime(fadeInCurve(), now, FADE_IN);
@@ -261,10 +282,7 @@ export class Soundscape {
         clearTimeout(previous.stopTimer); previous.stopTimer = window.setTimeout(() => previous.stop(), SWITCH_FADE * 1000 + 50);
       }
       const next = this.deck(environment);
-      if (next) {
-        next.level.gain.cancelScheduledValues(now); next.level.gain.setValueAtTime(0, now);
-        next.level.gain.linearRampToValueAtTime(1, now + SWITCH_FADE); next.play();
-      }
+      if (next) { this.bringIn(environment, next, now, SWITCH_FADE); next.play(); }
     } else previous?.stop();
   }
 
@@ -275,7 +293,7 @@ export class Soundscape {
     const spec = this.tracks[environment];
     if (!spec?.tracks.length || !this.context || !this.master) return undefined;
     let deck = this.decks.get(environment);
-    if (!deck) { deck = new Deck(this.context, this.master, spec.tracks, spec.repeat); this.decks.set(environment, deck); }
+    if (!deck) { deck = new Deck(this.context, this.master, spec.tracks, spec.repeat, spec.ordered); this.decks.set(environment, deck); }
     return deck;
   }
 }
