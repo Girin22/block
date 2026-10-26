@@ -1,7 +1,7 @@
 import type { Environment } from './ambience';
 
 /** The environments the picker offers. Morning and night are switched off for now. */
-export type PickedEnvironment = Extract<Environment, 'off' | 'day' | 'rain'>;
+export type PickedEnvironment = Extract<Environment, 'off' | 'day' | 'rain' | 'halloween'>;
 
 /**
  * Line icons for the environment picker, drawn on a 24px grid with round caps so they sit with the
@@ -20,4 +20,7 @@ export const environmentIcons: Record<PickedEnvironment, string> = {
   // A cloud with three short drops that fall while selected.
   rain: svg(`<path d="M8 15h8.5a3.5 3.5 0 0 0 .2-7 5 5 0 0 0-9.5-.4A3.7 3.7 0 0 0 8 15Z"/>
     <g class="drops"><path d="m9 18-.6 1.4"/><path d="m12.5 18-.6 1.4"/><path d="m16 18-.6 1.4"/></g>`),
+  // Event: a jack-o'-lantern whose face glows while selected.
+  halloween: svg(`<path d="M12 7.5c-1.2-1.3-3.9-1.5-5.6.2-2.2 2.2-2.2 7.8 0 10 1.7 1.7 4.4 1.5 5.6.3 1.2 1.2 3.9 1.4 5.6-.3 2.2-2.2 2.2-7.8 0-10-1.7-1.7-4.4-1.5-5.6-.2Z"/><path d="M12 7.5c.1-1.4.7-2.4 1.8-3"/>
+    <g class="face"><path d="m8.6 11.6 1.3-1.1.6 1.4Z"/><path d="m15.4 11.6-1.3-1.1-.6 1.4Z"/><path d="M8.8 14.6c1.9 1.2 4.5 1.2 6.4 0"/></g>`),
 };

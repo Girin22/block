@@ -4,12 +4,16 @@ import { formatMeters, Pavement, SPAWN_ROTATION, SPAWN_X, WIDTH, type Rotation }
 import { PlayScene } from './scene';
 import { INTRO_GAIN, PlaySound } from './sound';
 import { isDownSwipe, swipeAxis, type SwipeAxis } from './input';
-import { downloadFile, Receipt, receiptPhoto } from './export';
+import { downloadFile, Receipt, receiptArt, receiptPhoto } from './export';
 import { showSavedToast } from './saved-toast';
 import { mountReceiptPreview } from './receipt-preview';
 import { PauseIcon } from './pause-icon';
 import { PlayTimer } from './play-timer';
 import { tileImages } from './tile-assets';
+import { leadPaver, onCue, onHalloween, PAVER_LIBRARY } from './halloween';
+import { NightSky } from './night-sky';
+import { Glitches } from './glitches';
+import { eventOpen, HALLOWEEN } from './events';
 import { Rain } from './rain';
 import { RainAmbience } from './rain-sound';
 import pausePopURL from '../../../assets/sfx/pause-pop.wav?url';
@@ -25,6 +29,8 @@ import hanokAlleyURL from '../../../assets/audio/거리/L03256-004.m4a?url';
 import seonbiAlleyURL from '../../../assets/audio/거리/L03258-004.m4a?url';
 import pohangMarketURL from '../../../assets/audio/거리/L03314-004.m4a?url';
 import ulsanStreetURL from '../../../assets/audio/거리/L03320-004.m4a?url';
+import halloweenLofiURL from '../../../assets/audio/할로윈/halloween-lofi.m4a?url';
+import misterioLofiURL from '../../../assets/audio/할로윈/misterio-lofi.m4a?url';
 import { environmentIcons, type PickedEnvironment } from './environment-icons';
 import { onTuning } from './tuning';
 import { installNative, isNativeApp, platform, saveExport } from './native';
@@ -33,16 +39,19 @@ import { playStudioIntro } from './studio-intro';
 
 // Planner preview: the pause screen can switch the ambient environment. Not decided for release yet.
 // Morning and night are out of the app (2026-10-01); only off, street and rain remain.
-const ENVIRONMENTS: { id: PickedEnvironment; label: string }[] = [
+// Seasonal events join at the right end for their days (events.ts); admin builds always show them to test.
+const showEvents = new URLSearchParams(location.search).has('admin') || import.meta.env.VITE_ADMIN === '1';
+const ENVIRONMENTS: { id: PickedEnvironment; label: string; event?: boolean }[] = [
   { id: 'off', label: '환경음 끄기' }, { id: 'day', label: '거리' }, { id: 'rain', label: '비' },
+  ...(showEvents || eventOpen(HALLOWEEN) ? [{ id: 'halloween' as const, label: '할로윈', event: true }] : []),
 ];
 document.querySelector('#app')!.innerHTML = `<main class="play">
   <canvas id="playfield" tabindex="0" aria-label="블록 쌓기. 좌우 스와이프로 이동, 탭으로 회전, 아래 스와이프로 배치."></canvas>
   <section id="pause-actions" aria-label="일시정지 기록" aria-hidden="true" inert>
     <div class="pause-content">
-      <div id="environment" role="radiogroup" aria-label="환경">
+      <div id="environment" role="radiogroup" aria-label="환경" style="--count:${ENVIRONMENTS.length}">
         <span class="environment-thumb" aria-hidden="true"></span>
-        ${ENVIRONMENTS.map(({ id, label }) => `<button role="radio" data-environment="${id}" aria-label="${label}" title="${label}" aria-checked="false" tabindex="-1">${environmentIcons[id]}</button>`).join('')}
+        ${ENVIRONMENTS.map(({ id, label, event }) => `<button role="radio" data-environment="${id}"${event ? ' data-event' : ''} aria-label="${label}" title="${label}" aria-checked="false" tabindex="-1">${environmentIcons[id]}</button>`).join('')}
       </div>
       <span class="stat-text" id="path-length" aria-label="깔린 길이">0.0미터</span>
       <img class="stat-icon" src="${tileImages.vertical}" alt="놓은 초록 블록"/>
@@ -97,6 +106,18 @@ const weather = document.createElement('canvas'); weather.id = 'weather'; weathe
 // The rain recording is only requested once the rain environment is first chosen.
 const rainAmbience = new RainAmbience(rainSoundURL);
 canvas.after(weather); const rain = new Rain(weather, rainAmbience);
+// Halloween's lantern light: a warm glow breathing in from the screen's edges over the night ground.
+const lantern = document.createElement('div'); lantern.id = 'lantern'; lantern.setAttribute('aria-hidden', 'true');
+weather.after(lantern);
+// Halloween's sky sits behind the board, which is drawn on a clear background while the event is on.
+const nightSky = new NightSky(PAVER_LIBRARY.find(paver => paver.id === 'pumpkin')!.url);
+canvas.before(nightSky.element);
+let glitchEnd = 0;
+const glitches = new Glitches((amount, ms) => {
+  view?.glitch(amount, ms);
+  play.classList.add('glitching'); clearTimeout(glitchEnd); glitchEnd = window.setTimeout(() => play.classList.remove('glitching'), ms);
+});
+nightSky.onWitch = () => glitches.cue();
 // The planner's saved values and onboarding copy load with the admin panel, before the intro starts.
 let adminReady: Promise<unknown> = Promise.resolve();
 if (admin) {
@@ -119,7 +140,12 @@ const sound = new PlaySound({ pause: pausePopURL, resume: resumePopURL }, [stone
 // night were dropped from the app on 2026-10-01; their recordings stay in assets/audio, out of the build.
 const soundscape = new Soundscape({
   day: { repeat: false, tracks: [{ url: hanokAlleyURL, lufs: -25.6 }, { url: seonbiAlleyURL, lufs: -25.7 }, { url: pohangMarketURL, lufs: -25.9 }, { url: ulsanStreetURL, lufs: -26.4 }] },
+  // Two lo-fi pieces (Pixabay Content License) in order, crossed over at their ends so they run as one
+  // loop. Music sits 5 dB above the ambience level, and swells in slowly the first time it is heard.
+  halloween: { repeat: false, ordered: true, fadeIn: 10, tracks: [{ url: halloweenLofiURL, lufs: -14.7, trim: 5 }, { url: misterioLofiURL, lufs: -19.1, trim: 5 }] },
 });
+/** The pavers' artwork follows the environment: only an event has its own. */
+const skin = () => soundscape.environment === 'halloween' ? 'halloween' : 'everyday';
 /**
  * Ambience keeps playing on the pause screen (the picker's X turns it off); it only holds while the page
  * is hidden. Browsers need a gesture to start it. It stays silent through the studio intro, whose own
@@ -163,8 +189,9 @@ const noWebGL = import.meta.env.DEV ? new URLSearchParams(location.search).get('
 function createScene() {
   try {
     if (noWebGL !== null) throw new Error('WebGL turned off with ?nowebgl');
-    view = new PlayScene(canvas, board, drop, rain); view.aim(x, rotation);
+    view = new PlayScene(canvas, board, drop, rain); view.aim(x, rotation); view.setSkin(skin());
     view.onFillSeat = () => { if (!paused && !document.hidden) sound.place(true); };
+    view.onFillStart = () => glitches.fill();
     if (import.meta.env.DEV && board.tiles.length) view.add(board.tiles.filter(tile => tile.y >= board.height - 24), false);
   }
   catch (error) {
@@ -310,6 +337,10 @@ function showEnvironment() {
 }
 function chooseEnvironment(environment: Environment) {
   soundscape.select(environment); rain.set(environment === 'rain');
+  // An event dresses the board, the pause screen's counters and the light; the others keep the everyday look.
+  const event = environment === 'halloween';
+  view?.setSkin(skin()); play.classList.toggle('halloween', event);
+  nightSky.setActive(event); glitches.setActive(event); showStatIcons();
   // Unlocking inside the tap lets the rain recording start later, when play resumes.
   if (environment === 'rain') rainAmbience.unlock();
   showEnvironment();
@@ -323,6 +354,25 @@ document.querySelector<HTMLElement>('#environment')!.addEventListener('keydown',
   chooseEnvironment(ENVIRONMENTS[index].id); environmentButtons[index].focus();
 });
 showEnvironment();
+/** The pause screen's counters show the slot's most likely event paver while an event is on. */
+function showStatIcons() {
+  const event = skin() === 'halloween';
+  document.querySelector<HTMLImageElement>('.stat-icon')!.src = (event && leadPaver('block')?.url) || tileImages.vertical;
+  document.querySelector<HTMLImageElement>('.stat-icon.small')!.src = (event && leadPaver('single')?.url) || tileImages.center;
+}
+// The planner's Halloween edits (admin panel) apply at once: pavers, sky, glitch timing.
+onHalloween(settings => {
+  view?.redress(); nightSky.apply(settings); glitches.apply(settings); showStatIcons();
+  play.dataset.backdrop = settings.backdrop;
+});
+// "Try it now" from the panel. A visitor needs the event's sky, so it switches to Halloween first.
+onCue(value => {
+  if (value === 'glitch') { glitches.now(); return; }
+  if (soundscape.environment !== 'halloween') chooseEnvironment('halloween');
+  nightSky.visit(value);
+});
+// Admin builds: G glitches on demand, to try timings against the music.
+if (admin) document.addEventListener('keydown', event => { if (event.code === 'KeyG' && !(event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement)) glitches.now(); });
 function closeReceipt() {
   generationAbort?.abort(); generationAbort = undefined;
   disposePreview?.(); disposePreview = undefined;
@@ -361,7 +411,8 @@ exportButton.addEventListener('click', async () => {
   // chooses to start over.
   exporting = true; exportButton.disabled = true; exportButton.textContent = '저장 중'; exportStatus.textContent = '';
   try {
-    const receipt = new Receipt(board, started);
+    // Saved as it looks: an event saves its own pavers (each tile the same one as on screen).
+    const receipt = new Receipt(board, started, await receiptArt(board.tiles, skin()));
     let file: File;
     if (receipt.format === 'png' && typeof CompressionStream !== 'undefined') {
       file = await receiptPhoto(receipt, undefined, value => { exportButton.textContent = `저장 중 ${Math.round(value * 100)}%`; })
@@ -383,7 +434,7 @@ async function openReceipt() {
   generationAbort = new AbortController();
   const signal = generationAbort.signal;
   const generation = ++photoGeneration;
-  const receipt = new Receipt(board, started);
+  const receipt = new Receipt(board, started, await receiptArt(board.tiles, skin()));
   receiptStatus.textContent = '';
   photo = undefined; manualPhoto = false;
   saveButton.disabled = true; saveButton.textContent = '사진 준비 중…';

@@ -8,7 +8,7 @@ import { TILE_BLEED, tileImages } from './tile-assets';
  * launch; a tap skips it. Each landing sounds a stone hit a little under the game's (2026-10-16), and the
  * street ambience waits until the game begins.
  */
-export const STUDIO_CREDIT = ['Studio Whynot', '×', 'Simulien'];
+export const STUDIO_CREDIT = ['Studio WhyNot', '×', 'Simulien'];
 
 /** The app icon's layout (scripts/make-app-icon.py): centres on a 3×3 grid, y down, pulled apart a little
  *  for thin joints (closer than the icon's 1.075, as in the designer's frame). */
