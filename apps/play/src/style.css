@@ -149,11 +149,8 @@ button:focus-visible{outline:2px solid #a7c897;outline-offset:4px}
 @keyframes environment-cross{from{transform:scale(.6)}to{transform:none}}
 @keyframes environment-lights{0%,62%,100%{opacity:1}74%{opacity:.2}86%{opacity:1}}
 @keyframes environment-fall{0%{opacity:0;transform:translate(.5px,-2px)}25%{opacity:1}100%{opacity:0;transform:translate(-1.2px,2.6px)}}
-/* A seasonal event sits at the right end with a small lantern-orange dot; chosen, its icon turns orange
-   and the pumpkin's face glows. */
-#environment button[data-event]::after{content:'';position:absolute;top:5px;right:9px;width:5px;height:5px;border-radius:50%;background:#f08a2c;box-shadow:0 0 6px #f08a2c}
+/* A seasonal event sits at the right end; chosen, its icon turns orange and the pumpkin's face glows. */
 #environment button[data-event][aria-checked=true]{color:#c85f17}
-#environment button[data-event][aria-checked=true]::after{opacity:0}
 .is-paused [aria-checked=true] .face path{animation:environment-glow 2.4s ease-in-out infinite}
 @keyframes environment-glow{0%,100%{fill:#f08a2c00}50%{fill:#f08a2c}}
 /* Halloween's lantern light, over the night ground and under the pause screen. It breathes slowly,
