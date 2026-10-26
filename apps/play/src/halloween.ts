@@ -6,6 +6,13 @@ import mummy from '../../../assets/images/halloween/mummy.png?url';
 import pumpkin from '../../../assets/images/halloween/pumpkin.png?url';
 import witch from '../../../assets/images/halloween/witch.png?url';
 import ghost from '../../../assets/images/halloween/ghost.png?url';
+// Lying two-cell pictures, shaded with the stone's side along the bottom like horizontal.png
+// (scripts/make-halloween-lying.py).
+import stoneLying from '../../../assets/images/halloween/stone-lying.png?url';
+import ghostDominoLying from '../../../assets/images/halloween/ghost-domino-lying.png?url';
+import purpleLying from '../../../assets/images/halloween/purple-lying.png?url';
+import orangeLying from '../../../assets/images/halloween/orange-lying.png?url';
+import mummyLying from '../../../assets/images/halloween/mummy-lying.png?url';
 
 /**
  * The Halloween event's look, editable from the admin panel while the planner reviews drafts.
@@ -23,13 +30,14 @@ export const SLOT_SHAPE: Record<HalloweenSlot, PaverShape> = { block: 'domino', 
 export const SLOTS: readonly { key: HalloweenSlot; label: string }[] = [
   { key: 'block', label: '놓는 블록' }, { key: 'single', label: '1칸 채움' }, { key: 'double', label: '2칸 채움' },
 ];
-export interface Paver { id: string; name: string; url: string; shape: PaverShape; }
+/** `lying` is a two-cell paver's own lying picture; without one (an added image) the upright one is turned. */
+export interface Paver { id: string; name: string; url: string; shape: PaverShape; lying?: string; }
 export const PAVER_LIBRARY: readonly Paver[] = [
-  { id: 'stone', name: '거미줄 돌', url: stone, shape: 'domino' },
-  { id: 'ghost-domino', name: '유령', url: ghostDomino, shape: 'domino' },
-  { id: 'purple', name: '보라', url: purple, shape: 'domino' },
-  { id: 'orange', name: '주황', url: orange, shape: 'domino' },
-  { id: 'mummy', name: '붕대', url: mummy, shape: 'domino' },
+  { id: 'stone', name: '거미줄 돌', url: stone, shape: 'domino', lying: stoneLying },
+  { id: 'ghost-domino', name: '유령', url: ghostDomino, shape: 'domino', lying: ghostDominoLying },
+  { id: 'purple', name: '보라', url: purple, shape: 'domino', lying: purpleLying },
+  { id: 'orange', name: '주황', url: orange, shape: 'domino', lying: orangeLying },
+  { id: 'mummy', name: '붕대', url: mummy, shape: 'domino', lying: mummyLying },
   { id: 'pumpkin', name: '호박', url: pumpkin, shape: 'square' },
   { id: 'witch', name: '마녀', url: witch, shape: 'square' },
   { id: 'ghost', name: '유령', url: ghost, shape: 'square' },
@@ -39,6 +47,11 @@ export interface SlotEntry { paver: string; weight: number; name?: string; url?:
 
 export type Backdrop = 'lantern' | 'lofi';
 export type Visitor = 'bats' | 'witch' | 'jack';
+/** How the dark visitors stand out on a dim phone: as they are, a glowing rim, a lit sky behind them, or a lighter colour. */
+export type VisitorLook = 'plain' | 'rim' | 'backlight' | 'light';
+export const VISITOR_LOOKS: readonly { key: VisitorLook; label: string }[] = [
+  { key: 'plain', label: '그대로' }, { key: 'rim', label: '윤곽 빛' }, { key: 'backlight', label: '뒤 밝히기' }, { key: 'light', label: '밝은 색' },
+];
 export const VISITORS: readonly { key: Visitor; label: string }[] = [
   { key: 'bats', label: '박쥐' }, { key: 'witch', label: '마녀 실루엣' }, { key: 'jack', label: '잭오랜턴' },
 ];
@@ -49,6 +62,11 @@ export interface HalloweenSettings {
   /** Each visitor comes on its own clock, every `visitorFrom`-`visitorTo` seconds at random, so two may cross together. */
   visitorFrom: number;
   visitorTo: number;
+  /** How the bats and the witch are made visible on a dim phone, how strongly (0-1), and their size.
+   *  Settled 2026-10-26: a glowing rim at 60%, a fifth larger. */
+  visitorLook: VisitorLook;
+  visitorGlow: number;
+  visitorScale: number;
   glitch: boolean;
   /** One glitch as a sealed space starts to fill (its first white filler begins to come down). */
   glitchOnFill: boolean;
@@ -75,6 +93,7 @@ export const HALLOWEEN_DEFAULTS: Readonly<HalloweenSettings> = {
   backdrop: 'lantern',
   visitors: { bats: true, witch: true, jack: false },
   visitorFrom: 20, visitorTo: 30,
+  visitorLook: 'rim', visitorGlow: 0.6, visitorScale: 1.2,
   glitch: false, glitchOnFill: true, glitchEvery: 40, glitchStrength: 0.5, glitchMs: 420,
 };
 

@@ -177,7 +177,17 @@ button:focus-visible{outline:2px solid #a7c897;outline-offset:4px}
 #backdrop .bat{color:#0b0812}
 #backdrop .bat svg{display:block;width:100%;fill:currentColor;transform-origin:50% 40%;animation:bat-flap var(--flap,180ms) ease-in-out infinite alternate}
 @keyframes bat-flap{to{transform:scaleY(.55)}}
-#backdrop .witch{width:118px;color:#0b0812;filter:drop-shadow(0 0 1px #0b0812)}
+#backdrop .witch{width:calc(118px * var(--visitor-scale,1));color:#0b0812;filter:drop-shadow(0 0 1px #0b0812)}
+/* Ways to keep the dark visitors visible on a dim phone, compared in the admin panel (visitorLook). Rim: a
+   lantern-orange edge on the bats, a moonlit one on the witch. Backlight: a faint lit band across the upper
+   sky where they fly. Light: the silhouettes mixed toward a dusky lilac. --visitor-glow sets how much. */
+#backdrop[data-visitor-look=rim] .bat{filter:drop-shadow(0 0 1px rgb(255 150 60 / var(--visitor-glow))) drop-shadow(0 0 6px rgb(255 138 42 / calc(var(--visitor-glow) * .7)))}
+#backdrop[data-visitor-look=rim] .witch{filter:drop-shadow(0 0 1px rgb(255 240 210 / var(--visitor-glow))) drop-shadow(0 0 8px rgb(246 227 176 / calc(var(--visitor-glow) * .6)))}
+#backdrop .visitors::before{content:'';position:absolute;inset:0;opacity:0;transition:opacity 1.2s ease;background:radial-gradient(85% 26% at 55% 20%,rgb(150 112 190 / calc(var(--visitor-glow) * .45)),rgb(150 112 190 / 0) 72%),radial-gradient(40% 14% at 60% 16%,rgb(255 214 170 / calc(var(--visitor-glow) * .22)),rgb(255 214 170 / 0) 75%)}
+#backdrop[data-visitor-look=backlight] .visitors::before{opacity:1}
+#backdrop[data-visitor-look=light] :is(.bat,.witch){color:color-mix(in srgb,#0b0812,#a58dc4 calc(var(--visitor-glow) * 100%))}
+/* Admin: the board as a phone turned down low would show it, to judge the visitors. */
+.dim-preview .play{filter:brightness(.38)}
 #backdrop .witch svg{display:block;width:100%;fill:currentColor}
 #backdrop .jack{width:40px;margin:-20px 0 0 -20px;filter:drop-shadow(0 0 10px #ff8a2acc)}
 #backdrop .jack.trail{filter:blur(2px)}

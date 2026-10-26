@@ -36,6 +36,9 @@ export class NightSky {
   apply(settings: HalloweenSettings) {
     this.settings = settings;
     this.setBackdrop(settings.backdrop);
+    this.element.dataset.visitorLook = settings.visitorLook;
+    this.element.style.setProperty('--visitor-glow', String(settings.visitorGlow));
+    this.element.style.setProperty('--visitor-scale', String(settings.visitorScale));
     this.schedule();
   }
   private setBackdrop(backdrop: Backdrop) { this.element.dataset.backdrop = backdrop; }
@@ -77,7 +80,7 @@ export class NightSky {
   private bats() {
     const count = 2 + Math.floor(Math.random() * 3), leftward = Math.random() < .5;
     for (let i = 0; i < count; i++) {
-      const bat = this.add('bat', BAT), size = 26 + Math.random() * 16, top = 8 + Math.random() * 34;
+      const bat = this.add('bat', BAT), size = (26 + Math.random() * 16) * (this.settings?.visitorScale ?? 1), top = 8 + Math.random() * 34;
       bat.style.width = `${size}px`; bat.style.setProperty('--flap', `${150 + Math.random() * 80}ms`);
       const duration = 6000 + Math.random() * 4000, rise = (Math.random() - .5) * 18, from = leftward ? 110 : -15, to = leftward ? -15 : 110;
       const keyframes: Keyframe[] = [0, .25, .5, .75, 1].map(at => ({

@@ -1,4 +1,4 @@
-import { changeHalloween, cue, halloween, HALLOWEEN_DEFAULTS, PAVER_LIBRARY, paverOf, replaceHalloween, SLOT_SHAPE, SLOTS, VISITORS, type HalloweenSettings, type HalloweenSlot, type Visitor } from './halloween';
+import { changeHalloween, cue, halloween, HALLOWEEN_DEFAULTS, PAVER_LIBRARY, paverOf, replaceHalloween, SLOT_SHAPE, SLOTS, VISITOR_LOOKS, VISITORS, type HalloweenSettings, type HalloweenSlot, type Visitor } from './halloween';
 
 /** Kept only on the tester's own device, like the other tuning values. */
 // v2: the settled defaults (2026-10-25) replace whatever a device kept from the review.
@@ -59,6 +59,12 @@ export function mountHalloweenPanel(body: HTMLElement, status: HTMLElement) {
       ${VISITORS.map(({ key, label }) => `<div class="hw-visitor"><label><input type="checkbox" data-visitor="${key}"> ${label}</label><button type="button" data-visit="${key}">지금 보기</button></div>`).join('')}
       <div class="hw-range"><label for="hw-visitor-from">최소 간격</label><input type="range" id="hw-visitor-from" min="5" max="90" step="1"><span class="hw-value"></span></div>
       <div class="hw-range"><label for="hw-visitor-to">최대 간격</label><input type="range" id="hw-visitor-to" min="5" max="90" step="1"><span class="hw-value"></span></div>
+      <p class="hw-sub">어두운 화면에서 보이게 하기</p>
+      <div class="tuning-choices" id="hw-visitor-look" role="radiogroup" aria-label="박쥐·마녀 보이게 하기">${VISITOR_LOOKS.map(({ key, label }) => `<button type="button" role="radio" data-value="${key}">${label}</button>`).join('')}</div>
+      <div class="hw-range"><label for="hw-visitor-glow">세기</label><input type="range" id="hw-visitor-glow" min="0.1" max="1" step="0.05"><span class="hw-value"></span></div>
+      <div class="hw-range"><label for="hw-visitor-scale">크기</label><input type="range" id="hw-visitor-scale" min="1" max="2" step="0.05"><span class="hw-value"></span></div>
+      <div class="hw-visitor"><label><input type="checkbox" id="hw-dim"> 어두운 화면 미리보기</label><button type="button" id="hw-visit-both">박쥐+마녀 같이</button></div>
+      <p class="hint">윤곽 빛: 박쥐는 주황, 마녀는 달빛 테두리 · 뒤 밝히기: 날아가는 하늘 위쪽을 옅게 밝힘 · 밝은 색: 실루엣을 연보라 쪽으로. 세기는 각 방법의 강도예요. 어두운 화면 미리보기는 게임 화면만 어둡게 해서 휴대폰 밝기를 낮춘 상태를 흉내 내요(이 기기에서만, 저장 안 됨).</p>
       <p class="hint">켜 둔 효과마다 따로 최소~최대 간격 사이의 무작위 시간마다 지나가요. 그래서 박쥐와 마녀가 동시에 나올 수도 있어요. 마녀가 달을 지날 때는 글리치가 함께 와요(자동 글리치 켜짐일 때).</p></div>
     <div class="tuning-row"><div class="row-head"><label>로파이 글리치</label></div>
       <div class="tuning-choices" id="hw-glitch" role="radiogroup" aria-label="자동 글리치"><button type="button" role="radio" data-value="1">자동 켜기</button><button type="button" role="radio" data-value="0">끄기</button></div>
@@ -135,11 +141,12 @@ export function mountHalloweenPanel(body: HTMLElement, status: HTMLElement) {
   };
   const switches = [
     choices('#hw-backdrop', () => halloween.backdrop, value => { halloween.backdrop = value as HalloweenSettings['backdrop']; }),
+    choices('#hw-visitor-look', () => halloween.visitorLook, value => { halloween.visitorLook = value as HalloweenSettings['visitorLook']; }),
     choices('#hw-glitch', () => halloween.glitch ? '1' : '0', value => { halloween.glitch = value === '1'; }),
     choices('#hw-glitch-fill', () => halloween.glitchOnFill ? '1' : '0', value => { halloween.glitchOnFill = value === '1'; }),
   ];
 
-  const range = (id: string, key: 'visitorFrom' | 'visitorTo' | 'glitchEvery' | 'glitchStrength' | 'glitchMs', format: (value: number) => string) => {
+  const range = (id: string, key: 'visitorFrom' | 'visitorTo' | 'visitorGlow' | 'visitorScale' | 'glitchEvery' | 'glitchStrength' | 'glitchMs', format: (value: number) => string) => {
     const input = section.querySelector<HTMLInputElement>(id)!, label = input.parentElement!.querySelector('.hw-value')!;
     const show = () => { input.value = String(halloween[key]); label.textContent = format(halloween[key]); };
     input.addEventListener('input', () => { changeHalloween(value => { value[key] = Number(input.value); }); label.textContent = format(halloween[key]); saved(); });
@@ -149,6 +156,8 @@ export function mountHalloweenPanel(body: HTMLElement, status: HTMLElement) {
   const ranges = [
     range('#hw-visitor-from', 'visitorFrom', v => `${v}초`),
     range('#hw-visitor-to', 'visitorTo', v => `${v}초`),
+    range('#hw-visitor-glow', 'visitorGlow', v => `${Math.round(v * 100)}%`),
+    range('#hw-visitor-scale', 'visitorScale', v => `${v.toFixed(2)}배`),
     range('#hw-glitch-every', 'glitchEvery', v => `${v}초`),
     range('#hw-glitch-strength', 'glitchStrength', v => `${Math.round(v * 100)}%`),
     range('#hw-glitch-ms', 'glitchMs', v => `${v}ms`),
@@ -160,6 +169,8 @@ export function mountHalloweenPanel(body: HTMLElement, status: HTMLElement) {
   }));
   showVisitors();
   section.querySelectorAll<HTMLButtonElement>('[data-visit]').forEach(button => button.addEventListener('click', () => cue(button.dataset.visit as Visitor)));
+  section.querySelector<HTMLInputElement>('#hw-dim')!.addEventListener('change', event => document.body.classList.toggle('dim-preview', (event.target as HTMLInputElement).checked));
+  section.querySelector('#hw-visit-both')!.addEventListener('click', () => { cue('witch'); cue('bats'); });
   section.querySelector('#hw-glitch-now')!.addEventListener('click', () => cue('glitch'));
 
   section.querySelector('#hw-reset')!.addEventListener('click', () => {

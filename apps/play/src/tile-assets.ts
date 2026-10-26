@@ -15,11 +15,12 @@ export type TileImage = keyof typeof tileImages;
  * tile by weight). Only the screen changes; the export keeps the everyday pavers.
  */
 export type TileSkin = 'everyday' | 'halloween';
-/** A tile's picture: the image, and whether an upright one is turned a quarter clockwise to lie flat. */
+/** A tile's picture: the image, and whether an upright one (an added image without a lying picture) is turned a quarter clockwise to lie flat. */
 export interface Artwork { url: string; turn: boolean; }
 export function tileArtwork(tile: { id: number; white: boolean; w: number; h: number }, skin: TileSkin): Artwork {
   if (skin === 'halloween') {
     const paver = pickPaver(!tile.white ? 'block' : tile.w + tile.h === 2 ? 'single' : 'double', tile.id);
+    if (paver && tile.w === 2 && paver.lying) return { url: paver.lying, turn: false };
     if (paver) return { url: paver.url, turn: tile.w === 2 };
   }
   return { url: tileImages[tileImage(tile)], turn: false };
