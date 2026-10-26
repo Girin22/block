@@ -220,8 +220,8 @@ if (import.meta.env.DEV) {
   const params = new URLSearchParams(location.search);
   const count = Number(params.get('stress'));
   if (Number.isFinite(count) && count > 0) {
-    const { stressBoard } = await import('./stress');
-    board = stressBoard(count, params.get('layout') === 'tower');
+    const { pinwheelBoard, stressBoard } = await import('./stress');
+    board = params.get('layout') === 'pinwheel' ? pinwheelBoard(count) : stressBoard(count, params.get('layout') === 'tower');
     started = new Date(Date.now() - 3600000);
   }
 }

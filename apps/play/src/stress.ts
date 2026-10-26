@@ -9,3 +9,17 @@ export function stressBoard(count: number, tower = false) {
   }
   return board;
 }
+
+/** Store-art fixture: `tiers` rows of the app icon's pinwheel, three across, each sealing a white 1x1. */
+export function pinwheelBoard(tiers: number) {
+  const board = new Pavement();
+  for (let tier = 0; tier < tiers; tier++) {
+    for (let left = 0; left < WIDTH; left += 3) {
+      board.drop(left, 0); // lying, along the bottom
+      board.drop(left + 2, 1); // standing, at the right
+      board.drop(left, 1); // standing, at the left on the first
+      board.drop(left + 1, 0); // lying across the top, which seals the middle
+    }
+  }
+  return board;
+}
