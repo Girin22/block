@@ -80,11 +80,16 @@ export class RainAmbience {
     window.setTimeout(() => { this.recovering = false; }, 800);
     replaceIfStuck(context, () => {
       if (context !== this.context || this.paused) return;
-      for (const { element } of this.voices) { element.pause(); element.removeAttribute('src'); element.load(); }
-      this.voices = []; this.current = 0; this.crossing = false; this.context = undefined; this.master = undefined;
-      void context.close().catch(() => {});
-      this.unlock();
+      this.release(); this.unlock();
     });
+  }
+  /** The app has left the screen: the context and voices are let go of; the next unlock() builds fresh ones (see PlaySound.release). */
+  release() {
+    const context = this.context;
+    if (!context) return;
+    for (const { element } of this.voices) { element.pause(); element.removeAttribute('src'); element.load(); }
+    this.voices = []; this.current = 0; this.crossing = false; this.context = undefined; this.master = undefined;
+    void context.close().catch(() => {});
   }
 
   private paused = false;

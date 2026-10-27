@@ -520,10 +520,12 @@ menu.addEventListener('close', () => {
   else exportButton.focus();
 });
 function holdAmbience() { soundscape.pause(); rainAmbience.setPaused(true); }
+/** Leaving the screen lets go of every audio context; coming back builds fresh ones (see Soundscape.release). */
+function releaseAudio() { holdAmbience(); sound.release(); soundscape.release(); rainAmbience.release(); }
 // Leaving the page pauses the game and holds the ambience; coming back brings the ambience back on the
 // pause screen (or with the next tap, where the browser wants one).
-document.addEventListener('visibilitychange', () => { if (document.hidden) { pause(); holdAmbience(); } else if (!menu.open) playAmbience(); });
-window.addEventListener('pagehide', () => { gesture = undefined; playTimer.pause(); sound.pause(); holdAmbience(); });
+document.addEventListener('visibilitychange', () => { if (document.hidden) { pause(); releaseAudio(); } else if (!menu.open) playAmbience(); });
+window.addEventListener('pagehide', () => { gesture = undefined; playTimer.pause(); sound.pause(); releaseAudio(); });
 window.addEventListener('pageshow', event => {
   if (!event.persisted) return;
   // A full navigation back from the browser cache starts a fresh, unsaved canvas.
@@ -549,6 +551,6 @@ void installNative({
     if (paused || board.atLimit) return false;
     sound.button('pause'); pause(); return true;
   },
-  hidden: () => { pause(); holdAmbience(); },
+  hidden: () => { pause(); releaseAudio(); },
   shown: () => { if (!menu.open) playAmbience(); },
 });

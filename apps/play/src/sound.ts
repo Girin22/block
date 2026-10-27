@@ -120,9 +120,20 @@ export class PlaySound {
     window.setTimeout(() => { this.recovering = false; }, 800);
     replaceIfStuck(context, () => {
       if (pauses !== this.pauses || context !== this.context) return;
-      this.context = undefined; this.output = undefined; void context.close().catch(() => {});
-      this.unlock();
+      this.release(); this.unlock();
     });
+  }
+  /**
+   * The app has left the screen: the context is closed and the next sound starts a fresh one (decoded
+   * sounds carry over). After another app has played, iOS can hand back a context that says 'running'
+   * yet stays silent.
+   */
+  release() {
+    const context = this.context;
+    if (!context) return;
+    clearTimeout(this.suspendTimer); this.pauses++;
+    this.context = undefined; this.output = undefined;
+    void context.close().catch(() => {});
   }
   /** Suspends the effects once any button sound has finished, so pausing never cuts it off. */
   pause() {

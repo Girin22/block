@@ -81,6 +81,8 @@ class Deck {
   private crossing = false;
   private started = false;
   private track: number;
+  /** Seconds into the recording the next fresh pass starts at (a deck rebuilt after the app was away). */
+  private startAt = 0;
   stopTimer = 0;
 
   constructor(private context: AudioContext, destination: AudioNode, private tracks: Track[], private repeat: boolean, private ordered = false) {
@@ -113,6 +115,7 @@ class Deck {
       this.started = true; this.crossing = false; this.current = 0;
       const [first, spare] = this.voices;
       this.load(first, this.track); first.fade.gain.cancelScheduledValues(0); first.fade.gain.value = 1;
+      if (this.startAt) { first.element.currentTime = this.startAt; this.startAt = 0; }
       this.load(spare, this.following(first.track)); spare.fade.gain.value = 0;
     }
     for (const voice of this.voices) {
@@ -144,6 +147,14 @@ class Deck {
   get sounding() { return this.started && !this.voices[this.current].element.paused; }
 
   pause() { for (const voice of this.voices) if (!voice.element.paused) voice.element.pause(); }
+
+  /** Where the audible pass is, so a deck rebuilt on a fresh context can pick up there. */
+  get position() {
+    const voice = this.voices[this.current];
+    return this.started && voice.track >= 0 ? { track: voice.track, time: voice.element.currentTime } : undefined;
+  }
+  /** The next fresh pass starts from `position` instead of the top of a recording. */
+  resumeAt(position: { track: number; time: number }) { this.track = position.track; this.startAt = position.time; }
 
   /** Lets go of the recordings; the deck is not used again (its elements belong to a replaced context). */
   dispose() {
@@ -208,6 +219,10 @@ export class Soundscape {
   private selected: Environment = 'day';
   private playing = false;
   private suspendTimer = 0;
+  /** Where each environment's recording was when the app left, for its rebuilt deck. */
+  private positions = new Map<Environment, { track: number; time: number }>();
+  /** Set once a context has been let go of: the next start is a return, not the first one. */
+  private released = false;
   /** Environments already heard once; only the first entrance takes the slow swell. */
   private introduced = new Set<Environment>();
 
@@ -241,7 +256,7 @@ export class Soundscape {
   /** Starts or resumes the selected environment. Call from a user gesture. */
   play() {
     try {
-      const first = !this.context;
+      const first = !this.context && !this.released;
       this.context ??= new AudioContext();
       if (!this.master) { this.master = this.context.createGain(); this.master.gain.value = 0; this.master.connect(this.context.destination); }
       // Safari leaves the context 'interrupted', not 'suspended', after the phone locks or another app
@@ -272,14 +287,29 @@ export class Soundscape {
     this.recovering = true;
     replaceIfStuck(context, () => {
       if (!this.playing || context !== this.context) return;
-      for (const deck of this.decks.values()) deck.dispose();
-      this.decks.clear(); this.context = undefined; this.master = undefined; this.playing = false;
-      void context.close().catch(() => {});
-      this.play();
+      this.release(); this.play();
     });
     window.setTimeout(() => { this.recovering = false; }, 800);
   }
   private recovering = false;
+
+  /**
+   * The app has left the screen: the context and its decks are let go of, keeping each recording's
+   * place, and the next play() builds fresh ones. After another app (YouTube Music) has played, iOS can
+   * hand back a context that says 'running' yet stays silent, which no resume() repairs.
+   */
+  release() {
+    const context = this.context;
+    if (!context) return;
+    clearTimeout(this.suspendTimer);
+    for (const [environment, deck] of this.decks) {
+      const position = deck.position;
+      if (position) this.positions.set(environment, position);
+      deck.dispose();
+    }
+    this.decks.clear(); this.context = undefined; this.master = undefined; this.playing = false; this.released = true;
+    void context.close().catch(() => {});
+  }
 
   /** Fades everything out quickly, then holds each recording where it is. */
   pause() {
@@ -319,7 +349,11 @@ export class Soundscape {
     const spec = this.tracks[environment];
     if (!spec?.tracks.length || !this.context || !this.master) return undefined;
     let deck = this.decks.get(environment);
-    if (!deck) { deck = new Deck(this.context, this.master, spec.tracks, spec.repeat, spec.ordered); this.decks.set(environment, deck); }
+    if (!deck) {
+      deck = new Deck(this.context, this.master, spec.tracks, spec.repeat, spec.ordered); this.decks.set(environment, deck);
+      const position = this.positions.get(environment);
+      if (position) { deck.resumeAt(position); this.positions.delete(environment); }
+    }
     return deck;
   }
 }
