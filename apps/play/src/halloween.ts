@@ -63,7 +63,7 @@ export interface HalloweenSettings {
   visitorFrom: number;
   visitorTo: number;
   /** How the bats and the witch are made visible on a dim phone, how strongly (0-1), and their size.
-   *  Settled 2026-10-26: a glowing rim at 60%, a fifth larger. */
+   *  The rim (2026-10-26) went back to the plain silhouette at its own size on 2026-10-27. */
   visitorLook: VisitorLook;
   visitorGlow: number;
   visitorScale: number;
@@ -90,7 +90,7 @@ export const HALLOWEEN_DEFAULTS: Readonly<HalloweenSettings> = {
   backdrop: 'lantern',
   visitors: { bats: true, witch: false, jack: false },
   visitorFrom: 10, visitorTo: 15,
-  visitorLook: 'rim', visitorGlow: 0.6, visitorScale: 1.2,
+  visitorLook: 'plain', visitorGlow: 0.6, visitorScale: 1,
   glitchOnWitch: true, glitchStrength: 0.5, glitchMs: 420,
 };
 

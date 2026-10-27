@@ -1,8 +1,8 @@
 import { changeHalloween, cue, halloween, HALLOWEEN_DEFAULTS, PAVER_LIBRARY, paverOf, replaceHalloween, SLOT_SHAPE, SLOTS, VISITOR_LOOKS, VISITORS, type HalloweenSettings, type HalloweenSlot, type Visitor } from './halloween';
 
 /** Kept only on the tester's own device, like the other tuning values. */
-// v3: the revised defaults (2026-10-27: no witch in the sky, glitch on the witch paver) replace whatever a device kept.
-const STORAGE_KEY = 'blockstep.halloween.v3';
+// v4: the revised defaults (2026-10-27: no witch in the sky, plain bats, glitch on the witch paver) replace whatever a device kept.
+const STORAGE_KEY = 'blockstep.halloween.v4';
 /** Images the planner adds are scaled to this height at most, so a few of them fit in the device's storage. */
 const UPLOAD_HEIGHT = 360;
 
