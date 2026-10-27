@@ -33,8 +33,7 @@ import halloweenLofiURL from '../../../assets/audio/할로윈/halloween-lofi.m4a
 import misterioLofiURL from '../../../assets/audio/할로윈/misterio-lofi.m4a?url';
 import { environmentIcons, type PickedEnvironment } from './environment-icons';
 import { onTuning } from './tuning';
-import { installNative, isNativeApp, platform, saveExport } from './native';
-import { mixWithOtherAudio } from './audio-session';
+import { installNative, isNativeApp, mixWithOtherAudio, platform, saveExport } from './native';
 import { Onboarding } from './onboarding';
 import { playStudioIntro } from './studio-intro';
 

@@ -1,9 +1,10 @@
 /**
  * The game's audio alongside other apps' (2026-10-27).
- * - With the environment off, the game's sound mixes with music from another app (YouTube Music and
- *   the like) instead of stopping it: WebKit's audio session 'ambient' (iOS 17+). Android's WebView
- *   takes the audio focus only for playing media elements, which the off environment never starts.
- *   'ambient' also follows the iPhone's silent switch, so effects go quiet there in silent mode.
+ * - On the web, with the environment off, the game's sound mixes with music from another app instead
+ *   of stopping it: WebKit's audio session 'ambient' (Safari 17+), which also follows the silent switch.
+ *   The iOS app sets its own session instead (native.ts): 'ambient' there went silent for good once
+ *   YouTube Music had played. Android's WebView takes the audio focus only for playing media elements,
+ *   which the off environment never starts.
  * - Coming back after another app has taken the audio, iOS can leave a context 'interrupted' for good,
  *   and resume() never completes. Such a context is replaced.
  */

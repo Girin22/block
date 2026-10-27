@@ -1,7 +1,10 @@
 import { Capacitor, registerPlugin } from '@capacitor/core';
+import { mixWithOtherAudio as mixWithWebAudio } from './audio-session';
 
 /** The app's own Android plugin (MainActivity registers it): shows a saved photo in the gallery app. */
 const Gallery = registerPlugin<{ open(options: { path: string }): Promise<void> }>('Gallery');
+/** The app's own iOS plugin (SceneDelegate.swift): whether the game's sound mixes with other apps' music. */
+const AudioSession = registerPlugin<{ setMix(options: { mix: boolean }): Promise<void> }>('AudioSession');
 
 /**
  * The thin layer between the game and the app shell (Capacitor). On the web every call here is a
@@ -18,6 +21,15 @@ export interface NativeHooks {
   hidden: () => void;
   /** The app is on screen again. */
   shown: () => void;
+}
+
+/**
+ * Lets the game's sound play alongside another app's music (the X environment) or take over from it.
+ * The iOS app sets its own audio session; the web uses WebKit's audio session API (audio-session.ts).
+ */
+export function mixWithOtherAudio(mix: boolean) {
+  if (platform === 'ios') void AudioSession.setMix({ mix }).catch(() => {});
+  else if (!isNativeApp) mixWithWebAudio(mix);
 }
 
 /** Wires the shell's lifecycle and system UI. Plugins load only inside the app. */
