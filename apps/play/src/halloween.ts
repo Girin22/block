@@ -20,7 +20,7 @@ import mummyLying from '../../../assets/images/halloween/mummy-lying.png?url';
  *   pavers, each with a weight. A tile draws its paver from its own id, so it keeps the same one as the
  *   game goes on, and a changed weight re-dresses the whole board at once for comparison.
  * - Backdrop: the lantern night or a lo-fi night sky, with bats, a witch and a flying jack-o'-lantern.
- * - Glitch: short lo-fi glitches now and then, gentle on the eyes, and one on demand.
+ * - Glitch: a short lo-fi glitch, gentle on the eyes, as a witch paver seats in a single gap, and one on demand.
  * Players get the defaults; the panel keeps a planner's changes on that device only.
  */
 export type HalloweenSlot = 'block' | 'single' | 'double';
@@ -67,11 +67,8 @@ export interface HalloweenSettings {
   visitorLook: VisitorLook;
   visitorGlow: number;
   visitorScale: number;
-  glitch: boolean;
-  /** One glitch as a sealed space starts to fill (its first white filler begins to come down). */
-  glitchOnFill: boolean;
-  /** Average seconds between automatic glitches. */
-  glitchEvery: number;
+  /** One glitch as a witch paver seats in a single gap (the moment it is wedged in), never on a timer. */
+  glitchOnWitch: boolean;
   /** 0-1: how far the picture tears and splits. */
   glitchStrength: number;
   /** Milliseconds one glitch lasts. */
@@ -79,22 +76,22 @@ export interface HalloweenSettings {
 }
 
 /**
- * Settled by the planner on 2026-10-25: purple and orange blocks half and half, pumpkins and witches
- * half and half in single gaps, bandages in two-cell gaps; the lantern night with bats and the witch,
- * each every 20-30 s on its own; a glitch only as a sealed space starts to fill. The other drafts stay in the
- * library for the panel.
+ * Settled by the planner on 2026-10-25, revised 2026-10-27: purple and orange blocks half and half,
+ * pumpkins three to one witch in single gaps, bandages in two-cell gaps; the lantern night with bats
+ * only, every 10-15 s; a glitch only as a witch paver seats. The other drafts (the witch silhouette
+ * among them) stay in the library for the panel.
  */
 export const HALLOWEEN_DEFAULTS: Readonly<HalloweenSettings> = {
   tiles: {
     block: [{ paver: 'purple', weight: 1 }, { paver: 'orange', weight: 1 }],
-    single: [{ paver: 'pumpkin', weight: 1 }, { paver: 'witch', weight: 1 }],
+    single: [{ paver: 'pumpkin', weight: 3 }, { paver: 'witch', weight: 1 }],
     double: [{ paver: 'mummy', weight: 1 }],
   },
   backdrop: 'lantern',
-  visitors: { bats: true, witch: true, jack: false },
-  visitorFrom: 20, visitorTo: 30,
+  visitors: { bats: true, witch: false, jack: false },
+  visitorFrom: 10, visitorTo: 15,
   visitorLook: 'rim', visitorGlow: 0.6, visitorScale: 1.2,
-  glitch: false, glitchOnFill: true, glitchEvery: 40, glitchStrength: 0.5, glitchMs: 420,
+  glitchOnWitch: true, glitchStrength: 0.5, glitchMs: 420,
 };
 
 const copy = (settings: Readonly<HalloweenSettings>): HalloweenSettings => JSON.parse(JSON.stringify(settings));

@@ -1,5 +1,6 @@
 import { clackVoice, synthesize } from './audio';
 import { nextTrack } from './ambience';
+import { replaceIfStuck } from './audio-session';
 
 /**
  * The pause button pops: the high pop pauses, the low one resumes. Since 2026-10-20 both are Pixabay's
@@ -52,7 +53,7 @@ export class PlaySound {
       this.context ??= new AudioContext();
       // Safari leaves the context 'interrupted', not 'suspended', after the phone locks or another app
       // takes the audio; it only comes back with resume() from a tap.
-      if (this.context.state !== 'running') void this.context.resume().catch(() => {});
+      if (this.context.state !== 'running') { void this.context.resume().catch(() => {}); this.recover(this.context); }
       if (!this.output) {
         // A limiter, not a compressor: it only catches peaks when many hits stack up. The recorded hits
         // already peak near -3 dBFS, and the old -10 dB / 8:1 setting (tuned for the synthesized clack)
@@ -109,9 +110,24 @@ export class PlaySound {
       this.ringingUntil = Math.max(this.ringingUntil, context.currentTime + buffer.duration);
     });
   }
+  /** Bumped by every pause, so a stuck context is only replaced while the effects are wanted. */
+  private pauses = 0;
+  private recovering = false;
+  /** A context left stuck after another app took the audio is dropped for a fresh one (decoded sounds carry over). */
+  private recover(context: AudioContext) {
+    if (this.recovering) return;
+    this.recovering = true; const pauses = this.pauses;
+    window.setTimeout(() => { this.recovering = false; }, 800);
+    replaceIfStuck(context, () => {
+      if (pauses !== this.pauses || context !== this.context) return;
+      this.context = undefined; this.output = undefined; void context.close().catch(() => {});
+      this.unlock();
+    });
+  }
   /** Suspends the effects once any button sound has finished, so pausing never cuts it off. */
   pause() {
     const context = this.context; if (!context) return;
+    this.pauses++;
     clearTimeout(this.suspendTimer); const token = ++this.pauseToken;
     // The first press may still be decoding; wait until its sound has actually started.
     void (this.pressing ?? Promise.resolve()).then(() => {

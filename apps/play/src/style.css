@@ -194,6 +194,8 @@ button:focus-visible{outline:2px solid #a7c897;outline-offset:4px}
 #backdrop .jack img{display:block;width:100%}
 /* A glitch also shakes the sky and the lantern light a few pixels, in step with the board's tear. */
 .glitching #backdrop,.glitching #lantern{animation:sky-jitter 110ms steps(2) infinite}
+/* Their own layers from the start, so the first glitch does not stall on promoting them. */
+.halloween #backdrop,.halloween #lantern{will-change:transform}
 @keyframes sky-jitter{0%{transform:translate(0,0)}50%{transform:translate(-3px,1px)}100%{transform:translate(2px,-1px)}}
 @keyframes lantern-breathe{0%,100%{opacity:1}38%{opacity:.72}46%{opacity:.9}70%{opacity:.8}}
 /* Leaving is quick so resuming never feels held back. Entering rises from further below and the last

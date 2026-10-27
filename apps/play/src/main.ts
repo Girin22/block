@@ -10,7 +10,7 @@ import { mountReceiptPreview } from './receipt-preview';
 import { PauseIcon } from './pause-icon';
 import { PlayTimer } from './play-timer';
 import { tileImages } from './tile-assets';
-import { leadPaver, onCue, onHalloween, PAVER_LIBRARY } from './halloween';
+import { leadPaver, onCue, onHalloween, PAVER_LIBRARY, pickPaver } from './halloween';
 import { NightSky } from './night-sky';
 import { Glitches } from './glitches';
 import { eventOpen, HALLOWEEN } from './events';
@@ -34,6 +34,7 @@ import misterioLofiURL from '../../../assets/audio/할로윈/misterio-lofi.m4a?u
 import { environmentIcons, type PickedEnvironment } from './environment-icons';
 import { onTuning } from './tuning';
 import { installNative, isNativeApp, platform, saveExport } from './native';
+import { mixWithOtherAudio } from './audio-session';
 import { Onboarding } from './onboarding';
 import { playStudioIntro } from './studio-intro';
 
@@ -117,7 +118,6 @@ const glitches = new Glitches((amount, ms) => {
   view?.glitch(amount, ms);
   play.classList.add('glitching'); clearTimeout(glitchEnd); glitchEnd = window.setTimeout(() => play.classList.remove('glitching'), ms);
 });
-nightSky.onWitch = () => glitches.cue();
 // The planner's saved values and onboarding copy load with the admin panel, before the intro starts.
 let adminReady: Promise<unknown> = Promise.resolve();
 if (admin) {
@@ -191,7 +191,8 @@ function createScene() {
     if (noWebGL !== null) throw new Error('WebGL turned off with ?nowebgl');
     view = new PlayScene(canvas, board, drop, rain); view.aim(x, rotation); view.setSkin(skin());
     view.onFillSeat = () => { if (!paused && !document.hidden) sound.place(true); };
-    view.onFillStart = () => glitches.fill();
+    // The witch paver brings the glitch as it is wedged into its single gap.
+    view.onFillSeated = tile => { if (skin() === 'halloween' && tile.white && tile.w + tile.h === 2 && pickPaver('single', tile.id)?.id === 'witch') glitches.witch(); };
     if (import.meta.env.DEV && board.tiles.length) view.add(board.tiles.filter(tile => tile.y >= board.height - 24), false);
   }
   catch (error) {
@@ -335,8 +336,13 @@ function showEnvironment() {
   document.querySelector<HTMLElement>('#environment')!.style.setProperty('--selected', String(index));
   environmentButtons.forEach((button, i) => { button.setAttribute('aria-checked', String(i === index)); button.tabIndex = i === index ? 0 : -1; });
 }
+// The choice stays on the device, so X keeps another app's music playing from the next launch on.
+const ENVIRONMENT_KEY = 'bodobodo.environment';
 function chooseEnvironment(environment: Environment) {
   soundscape.select(environment); rain.set(environment === 'rain');
+  // X lets the game's sound mix with music from another app instead of stopping it.
+  mixWithOtherAudio(environment === 'off');
+  try { localStorage.setItem(ENVIRONMENT_KEY, environment); } catch { /* Chosen for this run only. */ }
   // An event dresses the board, the pause screen's counters and the light; the others keep the everyday look.
   const event = environment === 'halloween';
   view?.setSkin(skin()); play.classList.toggle('halloween', event);
@@ -345,6 +351,11 @@ function chooseEnvironment(environment: Environment) {
   if (environment === 'rain') rainAmbience.unlock();
   showEnvironment();
 }
+try {
+  // An event that has ended is gone from the picker, and street (the default) takes its place.
+  const saved = ENVIRONMENTS.find(({ id }) => id === localStorage.getItem(ENVIRONMENT_KEY));
+  if (saved && saved.id !== soundscape.environment) chooseEnvironment(saved.id);
+} catch { /* Street, as on a first launch. */ }
 environmentButtons.forEach(button => button.addEventListener('click', () => chooseEnvironment(button.dataset.environment as Environment)));
 document.querySelector<HTMLElement>('#environment')!.addEventListener('keydown', event => {
   const step = ['ArrowRight', 'ArrowDown'].includes(event.key) ? 1 : ['ArrowLeft', 'ArrowUp'].includes(event.key) ? -1 : 0;

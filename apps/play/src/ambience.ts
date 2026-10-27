@@ -1,3 +1,5 @@
+import { replaceIfStuck } from './audio-session';
+
 /**
  * Environment ambience. Each environment is a deck of field recordings:
  * - day rotates through its recordings in a shuffled order,
@@ -143,6 +145,12 @@ class Deck {
 
   pause() { for (const voice of this.voices) if (!voice.element.paused) voice.element.pause(); }
 
+  /** Lets go of the recordings; the deck is not used again (its elements belong to a replaced context). */
+  dispose() {
+    this.stop(); this.level.disconnect();
+    for (const { element } of this.voices) { element.removeAttribute('src'); element.load(); }
+  }
+
   /** Silences the deck and forgets its position; the next play() starts a fresh pass. */
   stop() {
     this.pause(); this.started = false; this.crossing = false;
@@ -238,7 +246,7 @@ export class Soundscape {
       if (!this.master) { this.master = this.context.createGain(); this.master.gain.value = 0; this.master.connect(this.context.destination); }
       // Safari leaves the context 'interrupted', not 'suspended', after the phone locks or another app
       // takes the audio; it only comes back with resume() from a tap.
-      if (this.context.state !== 'running') void this.context.resume().catch(() => {});
+      if (this.context.state !== 'running') { void this.context.resume().catch(() => {}); this.recover(this.context); }
       const deck = this.deck(this.selected);
       // Already playing: a later tap only retries whatever a strict browser refused the first time.
       if (this.playing) { deck?.play(); return; }
@@ -254,6 +262,24 @@ export class Soundscape {
       else { gain.setValueAtTime(gain.value, now); gain.setTargetAtTime(1, now, RESUME_FADE / 3); }
     } catch { /* Ambience simply stays silent. */ }
   }
+
+  /**
+   * A context that stays stuck (see replaceIfStuck) is closed and play starts again on a fresh one, with
+   * fresh decks: a media element stays tied to the context it was first routed through.
+   */
+  private recover(context: AudioContext) {
+    if (this.recovering) return;
+    this.recovering = true;
+    replaceIfStuck(context, () => {
+      if (!this.playing || context !== this.context) return;
+      for (const deck of this.decks.values()) deck.dispose();
+      this.decks.clear(); this.context = undefined; this.master = undefined; this.playing = false;
+      void context.close().catch(() => {});
+      this.play();
+    });
+    window.setTimeout(() => { this.recovering = false; }, 800);
+  }
+  private recovering = false;
 
   /** Fades everything out quickly, then holds each recording where it is. */
   pause() {

@@ -68,6 +68,8 @@ export class PlayScene {
   private glitchFrom = 0;
   private glitchUntil = 0;
   private glitchAmount = 0;
+  /** Whether the glitch pass has been drawn once; until then its first use would stall on shader compiling. */
+  private glitchReady = false;
   private post?: { target: THREE.WebGLRenderTarget; scene: THREE.Scene; camera: THREE.Camera; material: THREE.ShaderMaterial };
   private settled = new Map<number, THREE.Mesh>();
   private active: THREE.Mesh;
@@ -97,8 +99,8 @@ export class PlayScene {
   private lastDraw = -Infinity;
   /** Fires as a white filler seats on screen; the game plays its sound here. */
   onFillSeat?: () => void;
-  /** Fires once per placement that seals a space, as its first white filler starts to come down. */
-  onFillStart?: () => void;
+  /** Fires as each white filler is wedged into its slot (sound or not); a witch paver's glitch comes here. */
+  onFillSeated?: (tile: Tile) => void;
   constructor(private canvas: HTMLCanvasElement, private board: Pavement, private onAutoLand: () => void, private rain?: Rain) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
@@ -144,6 +146,9 @@ export class PlayScene {
     if (skin === this.skin) return;
     this.skin = skin;
     this.scene.background = skin === 'halloween' ? null : DRY_GROUND.clone();
+    // The glitch pass is drawn once, invisibly, as the event starts: building its shader and frame
+    // buffer on the first real glitch stalled a phone for a moment and swallowed the effect.
+    if (skin === 'halloween') this.glitchReady = false;
     this.redress();
   }
   /** Puts every paver (board, falling block, frame) in its current artwork, after a skin or weight change. */
@@ -158,7 +163,7 @@ export class PlayScene {
     const now = performance.now();
     this.glitchFrom = now; this.glitchUntil = now + ms; this.glitchAmount = amount;
   }
-  private renderGlitch(now: number) {
+  private renderGlitch(now: number, amount = this.glitchAmount * Math.sin(Math.PI * Math.min(1, Math.max(0, (now - this.glitchFrom) / (this.glitchUntil - this.glitchFrom))))) {
     const size = this.renderer.getDrawingBufferSize(new THREE.Vector2());
     if (!this.post) {
       const material = new THREE.ShaderMaterial({ ...GLITCH_SHADER, uniforms: { map: { value: null }, amount: { value: 0 }, time: { value: 0 }, seed: { value: 0 } }, blending: THREE.NoBlending, depthTest: false, depthWrite: false });
@@ -167,10 +172,9 @@ export class PlayScene {
     }
     const { target, scene, camera, material } = this.post;
     if (target.width !== size.x || target.height !== size.y) target.setSize(size.x, size.y);
-    // Eases in and out over its length so it never starts or stops as a jolt.
-    const t = (now - this.glitchFrom) / (this.glitchUntil - this.glitchFrom);
+    // `amount` eases in and out over its length so it never starts or stops as a jolt (0 draws the plain picture).
     material.uniforms.map.value = target.texture;
-    material.uniforms.amount.value = this.glitchAmount * Math.sin(Math.PI * Math.min(1, Math.max(0, t)));
+    material.uniforms.amount.value = amount;
     material.uniforms.time.value = now / 1000; material.uniforms.seed.value = this.glitchFrom % 97;
     this.renderer.setRenderTarget(target); this.renderer.render(this.scene, this.camera);
     this.renderer.setRenderTarget(null); this.renderer.render(scene, camera);
@@ -309,7 +313,7 @@ export class PlayScene {
       this.scene.add(mesh); this.settled.set(tile.id, mesh);
       if (!tile.white || !animate) continue;
       // Lowered from just above: its own fading material and shadow exist only until it seats.
-      mesh.userData.born = this.animationTime + delay + order * FILL_STAGGER / speed; mesh.userData.speed = speed; mesh.userData.sound = plan.seats.has(order); mesh.userData.first = order === 0;
+      mesh.userData.born = this.animationTime + delay + order * FILL_STAGGER / speed; mesh.userData.speed = speed; mesh.userData.sound = plan.seats.has(order);
       mesh.userData.spin = mesh.rotation.z; order++;
       const fading = material.clone(); fading.opacity = 0; mesh.material = fading;
       const shadow = this.fallingShadow.spawn(image); shadow.renderOrder = tile.id - .5;
@@ -397,8 +401,11 @@ export class PlayScene {
       // The white filler is lowered straight onto its slot: accelerating, rigid, flush on contact.
       filling = true;
       const age = (this.animationTime - mesh.userData.born) * (mesh.userData.speed ?? tuning.fillSpeed);
-      if (mesh.userData.first && age >= 0 && dt > 0) { mesh.userData.first = false; this.onFillStart?.(); }
-      if (age >= FILL_LANDS) { this.seat(mesh); if (mesh.userData.sound && dt > 0) this.onFillSeat?.(); continue; }
+      if (age >= FILL_LANDS) {
+        this.seat(mesh);
+        if (dt > 0) { if (mesh.userData.sound) this.onFillSeat?.(); this.onFillSeated?.(mesh.userData.tile); }
+        continue;
+      }
       const altitude = fillAltitude(age), opacity = fillOpacity(age), lift = 1 + FILL_LIFT * altitude;
       (mesh.material as THREE.MeshBasicMaterial).opacity = opacity;
       mesh.position.y = mesh.userData.baseY + mesh.userData.height / 2 + fillGap(age); mesh.position.z = .1; mesh.scale.set(lift, lift, 1);
@@ -408,8 +415,11 @@ export class PlayScene {
       this.fallingShadow.updateSpawned(shadow, mesh, 1.2 * altitude, opacity, tilt);
     }
     const glitching = now < this.glitchUntil;
-    if (this.changed(now, filling || glitching)) {
-      if (glitching) this.renderGlitch(now); else this.renderer.render(this.scene, this.camera);
+    if (this.changed(now, filling || glitching) || (!this.glitchReady && this.skin === 'halloween')) {
+      if (glitching) this.renderGlitch(now);
+      else if (!this.glitchReady && this.skin === 'halloween') this.renderGlitch(now, 0);
+      else this.renderer.render(this.scene, this.camera);
+      this.glitchReady ||= this.skin === 'halloween';
       this.lastDraw = now;
     }
     this.raf = requestAnimationFrame(this.frame);

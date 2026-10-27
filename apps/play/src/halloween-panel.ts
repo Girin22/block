@@ -1,8 +1,8 @@
 import { changeHalloween, cue, halloween, HALLOWEEN_DEFAULTS, PAVER_LIBRARY, paverOf, replaceHalloween, SLOT_SHAPE, SLOTS, VISITOR_LOOKS, VISITORS, type HalloweenSettings, type HalloweenSlot, type Visitor } from './halloween';
 
 /** Kept only on the tester's own device, like the other tuning values. */
-// v2: the settled defaults (2026-10-25) replace whatever a device kept from the review.
-const STORAGE_KEY = 'blockstep.halloween.v2';
+// v3: the revised defaults (2026-10-27: no witch in the sky, glitch on the witch paver) replace whatever a device kept.
+const STORAGE_KEY = 'blockstep.halloween.v3';
 /** Images the planner adds are scaled to this height at most, so a few of them fit in the device's storage. */
 const UPLOAD_HEIGHT = 360;
 
@@ -65,16 +65,14 @@ export function mountHalloweenPanel(body: HTMLElement, status: HTMLElement) {
       <div class="hw-range"><label for="hw-visitor-scale">크기</label><input type="range" id="hw-visitor-scale" min="1" max="2" step="0.05"><span class="hw-value"></span></div>
       <div class="hw-visitor"><label><input type="checkbox" id="hw-dim"> 어두운 화면 미리보기</label><button type="button" id="hw-visit-both">박쥐+마녀 같이</button></div>
       <p class="hint">윤곽 빛: 박쥐는 주황, 마녀는 달빛 테두리 · 뒤 밝히기: 날아가는 하늘 위쪽을 옅게 밝힘 · 밝은 색: 실루엣을 연보라 쪽으로. 세기는 각 방법의 강도예요. 어두운 화면 미리보기는 게임 화면만 어둡게 해서 휴대폰 밝기를 낮춘 상태를 흉내 내요(이 기기에서만, 저장 안 됨).</p>
-      <p class="hint">켜 둔 효과마다 따로 최소~최대 간격 사이의 무작위 시간마다 지나가요. 그래서 박쥐와 마녀가 동시에 나올 수도 있어요. 마녀가 달을 지날 때는 글리치가 함께 와요(자동 글리치 켜짐일 때).</p></div>
+      <p class="hint">켜 둔 효과마다 따로 최소~최대 간격 사이의 무작위 시간마다 지나가요. 그래서 둘 이상 켜면 동시에 나올 수도 있어요.</p></div>
     <div class="tuning-row"><div class="row-head"><label>로파이 글리치</label></div>
-      <div class="tuning-choices" id="hw-glitch" role="radiogroup" aria-label="자동 글리치"><button type="button" role="radio" data-value="1">자동 켜기</button><button type="button" role="radio" data-value="0">끄기</button></div>
-      <p class="hw-sub">빈 공간이 채워질 때 1회</p>
-      <div class="tuning-choices" id="hw-glitch-fill" role="radiogroup" aria-label="빈 공간이 채워질 때 글리치"><button type="button" role="radio" data-value="1">켜기</button><button type="button" role="radio" data-value="0">끄기</button></div>
-      <div class="hw-range"><label for="hw-glitch-every">평균 간격</label><input type="range" id="hw-glitch-every" min="12" max="120" step="1"><span class="hw-value"></span></div>
+      <p class="hw-sub">마녀 타일이 끼워질 때</p>
+      <div class="tuning-choices" id="hw-glitch-witch" role="radiogroup" aria-label="마녀 타일이 끼워질 때 글리치"><button type="button" role="radio" data-value="1">켜기</button><button type="button" role="radio" data-value="0">끄기</button></div>
       <div class="hw-range"><label for="hw-glitch-strength">세기</label><input type="range" id="hw-glitch-strength" min="0.1" max="1" step="0.05"><span class="hw-value"></span></div>
       <div class="hw-range"><label for="hw-glitch-ms">길이</label><input type="range" id="hw-glitch-ms" min="150" max="900" step="10"><span class="hw-value"></span></div>
       <button type="button" class="wide" id="hw-glitch-now">지금 글리치 (키보드 G)</button>
-      <p class="hint">눈이 편하도록 깜빡임·밝기 변화 없이 짧게 찢어지고 색이 살짝 갈라져요. 자동은 최소 12초 간격이에요. 채움 글리치는 흰 타일이 채워지기 시작하는 순간 한 번(여진 없음) 나오고, 글리치가 난 뒤 20초 안에 또 채워지면 나오지 않아요. 자동과 따로 켜고 끌 수 있어요.</p></div>
+      <p class="hint">눈이 편하도록 깜빡임·밝기 변화 없이 짧게 찢어지고 색이 살짝 갈라져요. 1칸 빈 공간에 마녀 타일이 딱 맞아 들어가는 순간에만 한 번 나와요(쿨타임 없음, 한 번에 마녀가 여럿이면 한 번만). 마녀가 나오는 비율은 위의 ‘1칸 채움’ 비중으로 정해요.</p></div>
     <button type="button" class="wide" id="hw-reset">할로윈 설정 기본값으로</button>`;
   body.append(section);
 
@@ -142,11 +140,10 @@ export function mountHalloweenPanel(body: HTMLElement, status: HTMLElement) {
   const switches = [
     choices('#hw-backdrop', () => halloween.backdrop, value => { halloween.backdrop = value as HalloweenSettings['backdrop']; }),
     choices('#hw-visitor-look', () => halloween.visitorLook, value => { halloween.visitorLook = value as HalloweenSettings['visitorLook']; }),
-    choices('#hw-glitch', () => halloween.glitch ? '1' : '0', value => { halloween.glitch = value === '1'; }),
-    choices('#hw-glitch-fill', () => halloween.glitchOnFill ? '1' : '0', value => { halloween.glitchOnFill = value === '1'; }),
+    choices('#hw-glitch-witch', () => halloween.glitchOnWitch ? '1' : '0', value => { halloween.glitchOnWitch = value === '1'; }),
   ];
 
-  const range = (id: string, key: 'visitorFrom' | 'visitorTo' | 'visitorGlow' | 'visitorScale' | 'glitchEvery' | 'glitchStrength' | 'glitchMs', format: (value: number) => string) => {
+  const range = (id: string, key: 'visitorFrom' | 'visitorTo' | 'visitorGlow' | 'visitorScale' | 'glitchStrength' | 'glitchMs', format: (value: number) => string) => {
     const input = section.querySelector<HTMLInputElement>(id)!, label = input.parentElement!.querySelector('.hw-value')!;
     const show = () => { input.value = String(halloween[key]); label.textContent = format(halloween[key]); };
     input.addEventListener('input', () => { changeHalloween(value => { value[key] = Number(input.value); }); label.textContent = format(halloween[key]); saved(); });
@@ -158,7 +155,6 @@ export function mountHalloweenPanel(body: HTMLElement, status: HTMLElement) {
     range('#hw-visitor-to', 'visitorTo', v => `${v}초`),
     range('#hw-visitor-glow', 'visitorGlow', v => `${Math.round(v * 100)}%`),
     range('#hw-visitor-scale', 'visitorScale', v => `${v.toFixed(2)}배`),
-    range('#hw-glitch-every', 'glitchEvery', v => `${v}초`),
     range('#hw-glitch-strength', 'glitchStrength', v => `${Math.round(v * 100)}%`),
     range('#hw-glitch-ms', 'glitchMs', v => `${v}ms`),
   ];

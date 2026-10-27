@@ -1,3 +1,5 @@
+import { replaceIfStuck } from './audio-session';
+
 /**
  * Looping rain ambience for the admin weather. The recording fades in and out at its own edges, so a
  * plain loop would dip every pass. Two streamed voices overlap instead: the next pass starts under the
@@ -66,8 +68,23 @@ export class RainAmbience {
       }
       // Safari leaves the context 'interrupted', not 'suspended', after the phone locks or another app
       // takes the audio; it only comes back with resume() from a tap.
-      if (this.context.state !== 'running') void this.context.resume().catch(() => {});
+      if (this.context.state !== 'running') { void this.context.resume().catch(() => {}); this.recover(this.context); }
     } catch { /* The rain simply stays silent. */ }
+  }
+
+  private recovering = false;
+  /** A context left stuck after another app took the audio is replaced, with new voices (an element stays tied to its first context). */
+  private recover(context: AudioContext) {
+    if (this.recovering) return;
+    this.recovering = true;
+    window.setTimeout(() => { this.recovering = false; }, 800);
+    replaceIfStuck(context, () => {
+      if (context !== this.context || this.paused) return;
+      for (const { element } of this.voices) { element.pause(); element.removeAttribute('src'); element.load(); }
+      this.voices = []; this.current = 0; this.crossing = false; this.context = undefined; this.master = undefined;
+      void context.close().catch(() => {});
+      this.unlock();
+    });
   }
 
   private paused = false;

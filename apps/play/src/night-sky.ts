@@ -24,8 +24,6 @@ export class NightSky {
   private active = false;
   private timers = new Map<Visitor, number>();
   private settings?: HalloweenSettings;
-  /** The witch is the sky's big moment; the glitch can answer it. */
-  onWitch?: () => void;
 
   constructor(private pumpkinURL: string) {
     this.element.id = 'backdrop'; this.element.setAttribute('aria-hidden', 'true');
@@ -100,7 +98,6 @@ export class NightSky {
       { transform: 'translate(60cqw, 12cqh) rotate(-3deg)', opacity: .85, offset: .75 },
       { transform: 'translate(105cqw, 9cqh) rotate(-1deg)', opacity: 0 },
     ], { duration: 9000, easing: 'cubic-bezier(.4,0,.6,1)', fill: 'both' }).finished.then(() => witch.remove(), () => witch.remove());
-    window.setTimeout(() => this.onWitch?.(), 2200);
   }
 
   /** A glowing jack-o'-lantern whooshes across on an arc, spinning, with a short trail. */
