@@ -1,10 +1,15 @@
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import { mixWithOtherAudio as mixWithWebAudio } from './audio-session';
+import type { EffectPlayer } from './sound';
 
 /** The app's own Android plugin (MainActivity registers it): shows a saved photo in the gallery app. */
 const Gallery = registerPlugin<{ open(options: { path: string }): Promise<void> }>('Gallery');
-/** The app's own iOS plugin (SceneDelegate.swift): whether the game's sound mixes with other apps' music. */
-const AudioSession = registerPlugin<{ setMix(options: { mix: boolean }): Promise<void> }>('AudioSession');
+/** The app's own iOS plugin (SceneDelegate.swift): the X environment's effects, mixed with other apps' music. */
+const AudioSession = registerPlugin<{
+  setMix(options: { mix: boolean }): Promise<void>;
+  load(options: { sounds: { id: string; path: string }[] }): Promise<void>;
+  play(options: { id: string; rate: number; volume: number; delay: number }): Promise<void>;
+}>('AudioSession');
 
 /**
  * The thin layer between the game and the app shell (Capacitor). On the web every call here is a
@@ -25,11 +30,20 @@ export interface NativeHooks {
 
 /**
  * Lets the game's sound play alongside another app's music (the X environment) or take over from it.
- * The iOS app sets its own audio session; the web uses WebKit's audio session API (audio-session.ts).
+ * The iOS app then plays the effects itself (nativeEffects); the web uses WebKit's audio session API
+ * (audio-session.ts). Android's WebView leaves other music alone while no ambience plays.
  */
 export function mixWithOtherAudio(mix: boolean) {
   if (platform === 'ios') void AudioSession.setMix({ mix }).catch(() => {});
   else if (!isNativeApp) mixWithWebAudio(mix);
+}
+
+/** The iOS app's own effects player for the X environment, with each sound loaded once; elsewhere none. */
+export function nativeEffects(sounds: Record<string, string>): EffectPlayer | undefined {
+  if (platform !== 'ios') return undefined;
+  const loaded = AudioSession.load({ sounds: Object.entries(sounds).map(([id, url]) => ({ id, path: decodeURI(new URL(url, location.href).pathname) })) })
+    .then(() => true, () => false);
+  return { play: (id, rate, volume, delay) => void loaded.then(ok => { if (ok) void AudioSession.play({ id, rate, volume, delay }).catch(() => {}); }) };
 }
 
 /** Wires the shell's lifecycle and system UI. Plugins load only inside the app. */

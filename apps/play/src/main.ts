@@ -33,7 +33,7 @@ import halloweenLofiURL from '../../../assets/audio/할로윈/halloween-lofi.m4a
 import misterioLofiURL from '../../../assets/audio/할로윈/misterio-lofi.m4a?url';
 import { environmentIcons, type PickedEnvironment } from './environment-icons';
 import { onTuning } from './tuning';
-import { installNative, isNativeApp, mixWithOtherAudio, platform, saveExport } from './native';
+import { installNative, isNativeApp, mixWithOtherAudio, nativeEffects, platform, saveExport } from './native';
 import { Onboarding } from './onboarding';
 import { playStudioIntro } from './studio-intro';
 
@@ -135,6 +135,8 @@ if (admin) {
 }
 let board = new Pavement(), started = new Date();
 const sound = new PlaySound({ pause: pausePopURL, resume: resumePopURL }, [stone01URL, stone02URL, stone03URL, stone04URL, stone05URL]);
+// The iOS app plays the effects itself in the X environment, so they mix with another app's music (native.ts).
+const appEffects = nativeEffects({ pause: pausePopURL, resume: resumePopURL, hit0: stone01URL, hit1: stone02URL, hit2: stone03URL, hit3: stone04URL, hit4: stone05URL });
 // Loudness of each recording (integrated LUFS) so every environment plays at the same level. Morning and
 // night were dropped from the app on 2026-10-01; their recordings stay in assets/audio, out of the build.
 const soundscape = new Soundscape({
@@ -339,8 +341,11 @@ function showEnvironment() {
 const ENVIRONMENT_KEY = 'bodobodo.environment';
 function chooseEnvironment(environment: Environment) {
   soundscape.select(environment); rain.set(environment === 'rain');
-  // X lets the game's sound mix with music from another app instead of stopping it.
-  mixWithOtherAudio(environment === 'off');
+  // X lets the game's sound mix with music from another app instead of stopping it. In the iOS app the
+  // page then holds no audio: the effects go to the app's own player, and the rain lets go once faded.
+  const mix = environment === 'off';
+  sound.useNative(mix ? appEffects : undefined); mixWithOtherAudio(mix);
+  if (mix && appEffects) window.setTimeout(() => { if (soundscape.environment === 'off') rainAmbience.release(); }, 3000);
   try { localStorage.setItem(ENVIRONMENT_KEY, environment); } catch { /* Chosen for this run only. */ }
   // An event dresses the board, the pause screen's counters and the light; the others keep the everyday look.
   const event = environment === 'halloween';

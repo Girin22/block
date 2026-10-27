@@ -219,6 +219,7 @@ export class Soundscape {
   private selected: Environment = 'day';
   private playing = false;
   private suspendTimer = 0;
+  private idleTimer = 0;
   /** Where each environment's recording was when the app left, for its rebuilt deck. */
   private positions = new Map<Environment, { track: number; time: number }>();
   /** Set once a context has been let go of: the next start is a return, not the first one. */
@@ -255,6 +256,8 @@ export class Soundscape {
 
   /** Starts or resumes the selected environment. Call from a user gesture. */
   play() {
+    // Nothing to play (off, or rain, which has its own player): no context, so the page holds no audio.
+    if (!this.tracks[this.selected]?.tracks.length && !this.context) { this.playing = true; return; }
     try {
       const first = !this.context && !this.released;
       this.context ??= new AudioContext();
@@ -330,6 +333,16 @@ export class Soundscape {
     if (environment === this.selected) return;
     const previous = this.decks.get(this.selected); this.selected = environment;
     const context = this.context;
+    // Coming from an environment with nothing to play: start this one afresh.
+    if (!context && this.playing) { this.playing = false; this.play(); return; }
+    // Going to one with nothing to play: once the last recording has faded, let go of the context.
+    if (!this.tracks[environment]?.tracks.length) {
+      clearTimeout(this.idleTimer);
+      this.idleTimer = window.setTimeout(() => {
+        if (this.tracks[this.selected]?.tracks.length || !this.playing) return;
+        this.release(); this.playing = true;
+      }, SWITCH_FADE * 1000 + 100);
+    }
     if (context && this.playing) {
       const now = context.currentTime;
       if (previous) {

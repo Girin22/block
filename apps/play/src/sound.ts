@@ -22,8 +22,13 @@ export function hitVoice(white: boolean, variation = 0) {
   return { rate: voice.pitch, gain: voice.gain / block.gain };
 }
 
+/** Plays an effect by id elsewhere (the iOS app's own player, native.ts): `rate` changes speed and pitch, `delay` is in seconds. */
+export interface EffectPlayer { play(id: string, rate: number, volume: number, delay: number): void; }
+
 export class PlaySound {
   private context?: AudioContext;
+  /** While set, every effect goes to this player and no audio context is made (the iOS app's X environment). */
+  private native?: EffectPlayer;
   private output?: DynamicsCompressorNode;
   private buttonBuffers?: Record<ButtonSound, Promise<AudioBuffer | undefined>>;
   /** Context time until which a button sound is still ringing; pausing waits for it. */
@@ -46,8 +51,18 @@ export class PlaySound {
   constructor(private buttonURLs?: Record<ButtonSound, string>, private hitURLs: string[] = []) {}
 
   /** Whether effects can sound right now, without waiting for a tap. */
-  get running() { return this.context?.state === 'running'; }
+  get running() { return !!this.native || this.context?.state === 'running'; }
+  /**
+   * Hands the effects to `player` (ids hit0.., pause, resume), letting go of the page's context so the
+   * page holds no audio at all, or takes them back with undefined.
+   */
+  useNative(player?: EffectPlayer) {
+    if (player === this.native) return;
+    this.native = player;
+    if (player) this.release();
+  }
   unlock() {
+    if (this.native) return;
     try {
       clearTimeout(this.suspendTimer); this.pauseToken++;
       this.context ??= new AudioContext();
@@ -80,6 +95,12 @@ export class PlaySound {
    * (INTRO_GAIN). A hit set ahead comes out early by the device's output latency, so it is heard on time.
    */
   place(white = false, level = 1, inSeconds = 0) {
+    if (this.native) {
+      this.lastHit = nextTrack(this.hitURLs.length, this.lastHit);
+      const voice = hitVoice(white, Math.random() * 2 - 1);
+      this.native.play(`hit${this.lastHit}`, voice.rate, voice.gain * level, Math.max(0, inSeconds - HIT_LEAD));
+      return;
+    }
     this.unlock(); if (!this.context || !this.output) return;
     const variation = Math.random() * 2 - 1, context = this.context;
     const latency = inSeconds > 0 ? (context.outputLatency || context.baseLatency || 0) + HIT_LEAD : 0;
@@ -98,6 +119,7 @@ export class PlaySound {
   }
   /** The pause button's press. Bypasses the limiter so it plays at exactly BUTTON_GAIN. */
   button(sound: ButtonSound) {
+    if (this.native) { this.native.play(sound, 1, BUTTON_GAIN, 0); return; }
     this.unlock(); const context = this.context;
     if (!context || !this.buttonBuffers) return;
     this.pressing = this.buttonBuffers[sound].then(buffer => {
