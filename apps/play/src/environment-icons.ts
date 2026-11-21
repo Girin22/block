@@ -11,6 +11,9 @@ const svg = (body: string) =>
   `<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
 
 // Kept sparse in the manner of system symbols: few strokes, generous space, dots instead of window frames.
+/** Check builds only: a fir tree with a star, for the winter environment shown as on Christmas Day. */
+export const santaIcon = svg(`<path d="M12 6.2 7.2 12.4h2.2L6 17.3h12l-3.4-4.9h2.2Z"/><path d="M12 17.3v2.4"/><path d="M12 3.6h.01"/>`);
+
 export const environmentIcons: Record<PickedEnvironment, string> = {
   // A small cross: no ambience. It turns into place when chosen.
   off: svg(`<path class="cross" d="M7.5 7.5l9 9M16.5 7.5l-9 9"/>`),

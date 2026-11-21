@@ -15,7 +15,7 @@ import { NightSky } from './night-sky';
 import { Glitches } from './glitches';
 import { CHRISTMAS, eventOpen, GREETINGS, greetingPhrases, HALLOWEEN } from './events';
 import { Greeting } from './greeting';
-import { DuckTongs, ducksOn, prepareDucks } from './duck';
+import { DuckTongs, ducksOn, forceSanta, prepareDucks } from './duck';
 import { giftsOn, isGiftTile, isOpened, openGift, prepareGifts, resetGifts, tearOpen } from './gift';
 import { Rain } from './rain';
 import { Snow } from './snow';
@@ -39,7 +39,7 @@ import halloweenLofiURL from '../../../assets/audio/할로윈/halloween-lofi.m4a
 import misterioLofiURL from '../../../assets/audio/할로윈/misterio-lofi.m4a?url';
 import christmasLofiURL from '../../../assets/audio/크리스마스/christmas-lofi.m4a?url';
 import jazzChristmasURL from '../../../assets/audio/크리스마스/jazz-christmas.m4a?url';
-import { environmentIcons, type PickedEnvironment } from './environment-icons';
+import { environmentIcons, santaIcon, type PickedEnvironment } from './environment-icons';
 import { onTuning, tuning } from './tuning';
 import { installNative, isNativeApp, mixWithOtherAudio, nativeEffects, platform, saveExport } from './native';
 import { Onboarding } from './onboarding';
@@ -52,10 +52,15 @@ import { playStudioIntro } from './studio-intro';
 // and hands that page its settings (preview-bridge.ts). It carries no admin panel of its own.
 const preview = import.meta.env.VITE_PREVIEW === '1';
 const showEvents = preview || new URLSearchParams(location.search).has('admin') || import.meta.env.VITE_ADMIN === '1';
-const ENVIRONMENTS: { id: PickedEnvironment; label: string; event?: boolean }[] = [
+// A check build (VITE_CHECK=1, the `check` branch's Codemagic variable) is for looking at winter on a phone
+// before December without changing its date: the picker always carries winter twice, as it is from the
+// first of December (plain snow ducks) and as it is on Christmas Eve and Day (ducks in Santa hats).
+const check = import.meta.env.VITE_CHECK === '1';
+const ENVIRONMENTS: { id: PickedEnvironment; label: string; event?: boolean; santa?: boolean }[] = [
   { id: 'off', label: '환경음 끄기' }, { id: 'day', label: '거리' }, { id: 'rain', label: '비' },
   ...(showEvents || eventOpen(HALLOWEEN) ? [{ id: 'halloween' as const, label: '할로윈', event: true }] : []),
-  ...(showEvents || eventOpen(CHRISTMAS) ? [{ id: 'christmas' as const, label: '크리스마스', event: true }] : []),
+  ...(check ? [{ id: 'christmas' as const, label: '눈', event: true }, { id: 'christmas' as const, label: '크리스마스', event: true, santa: true }]
+    : showEvents || eventOpen(CHRISTMAS) ? [{ id: 'christmas' as const, label: '크리스마스', event: true }] : []),
 ];
 document.querySelector('#app')!.innerHTML = `<main class="play">
   <canvas id="playfield" tabindex="0" aria-label="블록 쌓기. 좌우 스와이프로 이동, 탭으로 회전, 아래 스와이프로 배치."></canvas>
@@ -63,7 +68,7 @@ document.querySelector('#app')!.innerHTML = `<main class="play">
     <div class="pause-content">
       <div id="environment" role="radiogroup" aria-label="환경" style="--count:${ENVIRONMENTS.length}">
         <span class="environment-thumb" aria-hidden="true"></span>
-        ${ENVIRONMENTS.map(({ id, label, event }) => `<button role="radio" data-environment="${id}"${event ? ' data-event' : ''} aria-label="${label}" title="${label}" aria-checked="false" tabindex="-1">${environmentIcons[id]}</button>`).join('')}
+        ${ENVIRONMENTS.map(({ id, label, event, santa }) => `<button role="radio" data-environment="${id}"${event ? ' data-event' : ''}${santa ? ' data-santa' : ''} aria-label="${label}" title="${label}" aria-checked="false" tabindex="-1">${santa ? santaIcon : environmentIcons[id]}</button>`).join('')}
       </div>
       <span class="stat-text" id="path-length" aria-label="깔린 길이">0.0미터</span>
       <img class="stat-icon" src="${tileImages.vertical}" alt="놓은 초록 블록"/>
@@ -396,13 +401,16 @@ const environmentButtons = Array.from(document.querySelectorAll<HTMLButtonElemen
 /** Event environments the preview page has taken out of the picker, to see the pause screen with fewer of them. */
 const hiddenEvents = new Set<Environment>();
 const pickable = () => ENVIRONMENTS.filter(({ id }) => !hiddenEvents.has(id));
+/** Check builds: whether winter is on as its Christmas Day entry. */
+let santaPicked = false;
+const isCurrent = (entry: { id: Environment; santa?: boolean }) => entry.id === soundscape.environment && !!entry.santa === santaPicked;
 function showEnvironment() {
   const picker = document.querySelector<HTMLElement>('#environment')!, shown = pickable();
   picker.style.setProperty('--count', String(shown.length));
   // The thumb counts places among the buttons on show.
-  picker.style.setProperty('--selected', String(shown.findIndex(({ id }) => id === soundscape.environment)));
+  picker.style.setProperty('--selected', String(shown.findIndex(isCurrent)));
   environmentButtons.forEach(button => {
-    const id = button.dataset.environment as Environment, chosen = id === soundscape.environment;
+    const id = button.dataset.environment as Environment, chosen = isCurrent({ id, santa: 'santa' in button.dataset });
     button.hidden = hiddenEvents.has(id); button.setAttribute('aria-checked', String(chosen)); button.tabIndex = chosen ? 0 : -1;
   });
 }
@@ -432,7 +440,9 @@ onTuning(() => {
 });
 // The choice stays on the device, so X keeps another app's music playing from the next launch on.
 const ENVIRONMENT_KEY = 'bodobodo.environment';
-function chooseEnvironment(environment: Environment) {
+function chooseEnvironment(environment: Environment, santa = false) {
+  santa &&= environment === 'christmas';
+  if (santa !== santaPicked) { santaPicked = santa; forceSanta(santa); view?.redress(); }
   // Choosing an environment the preview page had hidden puts it back in the picker.
   hiddenEvents.delete(environment);
   soundscape.select(environment); rain.set(environment === 'rain'); snow.set(environment === 'christmas');
@@ -457,13 +467,13 @@ try {
   const saved = ENVIRONMENTS.find(({ id }) => id === localStorage.getItem(ENVIRONMENT_KEY));
   if (saved && saved.id !== soundscape.environment) chooseEnvironment(saved.id);
 } catch { /* Street, as on a first launch. */ }
-environmentButtons.forEach(button => button.addEventListener('click', () => chooseEnvironment(button.dataset.environment as Environment)));
+environmentButtons.forEach(button => button.addEventListener('click', () => chooseEnvironment(button.dataset.environment as Environment, 'santa' in button.dataset)));
 document.querySelector<HTMLElement>('#environment')!.addEventListener('keydown', event => {
   const step = ['ArrowRight', 'ArrowDown'].includes(event.key) ? 1 : ['ArrowLeft', 'ArrowUp'].includes(event.key) ? -1 : 0;
   if (!step) return;
   event.preventDefault();
-  const shown = pickable(), next = shown[(shown.findIndex(({ id }) => id === soundscape.environment) + step + shown.length) % shown.length].id;
-  chooseEnvironment(next); environmentButtons.find(button => button.dataset.environment === next)?.focus();
+  const shown = pickable(), next = shown[(shown.findIndex(isCurrent) + step + shown.length) % shown.length];
+  chooseEnvironment(next.id, next.santa); environmentButtons.find(button => button.dataset.environment === next.id && 'santa' in button.dataset === !!next.santa)?.focus();
 });
 showEnvironment();
 /** The pause screen's counters show the slot's most likely event paver while an event is on. */

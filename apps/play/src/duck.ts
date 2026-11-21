@@ -26,6 +26,9 @@ let sources: (HTMLImageElement | undefined)[] | undefined, none = '';
 /** Drawn pictures by kind and whole degrees of lean. */
 const drawn = new Map<string, string>();
 let preparing: Promise<void> | undefined;
+/** Check builds: the picker's second winter entry shows the ducks as on Christmas Day, whatever the date. */
+let santaForced = false;
+export function forceSanta(on: boolean) { santaForced = on; }
 /** Loads the pictures once; until they are ready the fillers stay plain. */
 export function prepareDucks() {
   return preparing ??= Promise.all(DUCK_IMAGES.map(url => new Promise<HTMLImageElement | undefined>(resolve => {
@@ -39,7 +42,7 @@ export function duckArt(id: number) {
   if (!ducksOn() || !sources) return undefined;
   if (waiting.has(id)) return none;
   // Plain ducks, in Santa hats on Christmas Eve and Christmas Day (or always, if a tester asks for it).
-  const wanted = tuning.duckKind || santaDay() ? 1 : 0, kind = sources[wanted] ? wanted : 0, image = sources[kind];
+  const wanted = tuning.duckKind || santaForced || santaDay() ? 1 : 0, kind = sources[wanted] ? wanted : 0, image = sources[kind];
   if (!image) return undefined;
   // The lean is fixed by the tile, so a duck keeps it across redraws and in the saved image.
   // Each leans its own way within tuning.duckTilt degrees either side, so a row of them is not stamped.
