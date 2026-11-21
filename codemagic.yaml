@@ -19,6 +19,8 @@ workflows:
         # Xcode 26's newer altool cannot find the app from its bundle ID ("Cannot determine the Apple ID
         # from Bundle ID", error 19); Codemagic's documented workaround is the legacy uploader.
         APP_STORE_CONNECT_ALTOOL_ADDITIONAL_ARGUMENTS: --use-old-altool
+        # This branch only: a check build, with winter always in the picker (see AGENTS.md). Never merge into main.
+        VITE_CHECK: "1"
     scripts:
       - name: Install
         script: npm ci
