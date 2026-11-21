@@ -15,6 +15,10 @@ workflows:
         bundle_identifier: com.simulien.bodobodo
       node: 22
       xcode: latest
+      vars:
+        # Xcode 26's newer altool cannot find the app from its bundle ID ("Cannot determine the Apple ID
+        # from Bundle ID", error 19); Codemagic's documented workaround is the legacy uploader.
+        APP_STORE_CONNECT_ALTOOL_ADDITIONAL_ARGUMENTS: --use-old-altool
     scripts:
       - name: Install
         script: npm ci
