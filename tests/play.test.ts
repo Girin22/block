@@ -113,6 +113,11 @@ describe('minimal free placement', () => {
     expect(pathMeters(board.filled)).toBeCloseTo(9 / WIDTH * CELL_METERS, 10);
     expect(formatMeters(WIDTH * 100)).toBe(`${(100 * CELL_METERS).toFixed(1)}미터`);
   });
+  it('fills a sealed space with one-cell pieces only when asked (snow ducks)', () => {
+    const pieces = tileRegion([[0, 0], [1, 0], [2, 0], [0, 1], [1, 1], [2, 1]], true);
+    expect(pieces).toHaveLength(6);
+    expect(pieces.every(piece => piece.w === 1 && piece.h === 1)).toBe(true);
+  });
   it('lays fillers bottom row first with woven long shapes and no overlap', () => {
     const pieces = tileRegion([[0, 0], [1, 0], [2, 0], [0, 1], [1, 1], [2, 1], [0, 2], [1, 2], [2, 2]]);
     const covered = new Set<string>();

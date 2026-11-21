@@ -18,7 +18,7 @@ button:focus-visible{outline:2px solid #a7c897;outline-offset:4px}
 /* vh first for browsers without dvh (older Android WebView, iOS before 15.4), then the dynamic unit. */
 .play{position:relative;width:min(100%,480px,62vh);width:min(100%,480px,62dvh);height:100vh;height:100dvh;margin-inline:auto;overflow:hidden;background:#2c2929}
 #playfield{position:relative;z-index:0;display:block;width:100%;height:100%;touch-action:none;user-select:none;outline:none}
-#weather{position:absolute;inset:0;z-index:1;width:100%;height:100%;pointer-events:none}
+#weather,#snowfall{position:absolute;inset:0;z-index:1;width:100%;height:100%;pointer-events:none}
 /* Admin tools sit outside the game column; on a phone there is no outside, so they tuck into a corner. */
 #admin{position:fixed;z-index:10;left:calc(16px + var(--safe-area-inset-left,env(safe-area-inset-left,0px)));bottom:calc(16px + var(--safe-area-inset-bottom,env(safe-area-inset-bottom,0px)));display:flex;flex-direction:column;align-items:flex-start;gap:10px;color:#8f9a88;font:15px/1.4 -apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;letter-spacing:1px}
 #admin .device{margin:0;font-size:16px;letter-spacing:0;line-height:1.5;color:#b9c4b0}
@@ -127,6 +127,7 @@ button:focus-visible{outline:2px solid #a7c897;outline-offset:4px}
    clear of the pause button on a 320px-wide screen. */
 #environment{--segment:46px;position:relative;display:grid;grid-template-columns:repeat(var(--count,3),var(--segment));height:44px;padding:3px;border-radius:22px;background:#faf9f612;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
 .is-paused #environment{pointer-events:auto}
+#environment button[hidden]{display:none}
 .environment-thumb{position:absolute;top:3px;left:3px;width:var(--segment);height:38px;border-radius:19px;background:#e6e2e2;box-shadow:inset 0 1px 0 #ffffffa0,inset 0 -2px 0 #0000001c,-2px 4px 10px #0000005c;transform:translateX(calc(var(--selected,1) * 100%));transition:transform 440ms cubic-bezier(.3,1.3,.45,1)}
 #environment button{position:relative;display:grid;place-items:center;height:38px;padding:0;border-radius:19px;background:none;color:#faf9f6;opacity:.5;touch-action:manipulation;transition:color 260ms ease,opacity 260ms ease}
 #environment button[aria-checked=true]{color:#345846;opacity:1}
@@ -151,6 +152,8 @@ button:focus-visible{outline:2px solid #a7c897;outline-offset:4px}
 @keyframes environment-fall{0%{opacity:0;transform:translate(.5px,-2px)}25%{opacity:1}100%{opacity:0;transform:translate(-1.2px,2.6px)}}
 /* A seasonal event sits at the right end; chosen, its icon turns orange and the pumpkin's face glows. */
 #environment button[data-event][aria-checked=true]{color:#c85f17}
+/* Winter's snowflake turns a cool blue; it stays still (its slow turning was taken out on 2026-11-14). */
+#environment button[data-environment=christmas][aria-checked=true]{color:#3f7fa8}
 .is-paused [aria-checked=true] .face path{animation:environment-glow 2.4s ease-in-out infinite}
 @keyframes environment-glow{0%,100%{fill:#f08a2c00}50%{fill:#f08a2c}}
 /* Halloween's lantern light, over the night ground and under the pause screen. It breathes slowly,
@@ -221,6 +224,46 @@ button:focus-visible{outline:2px solid #a7c897;outline-offset:4px}
 /* Phones (under 600 px wide) set the two actions smaller, as they do the onboarding text (80%); the row
    keeps its height, so nothing else on the pause screen moves. */
 @media(max-width:599px){#export,#restart{font-size:calc(var(--text-size) * .8)}}
+/* Snow-duck tongs (duck.ts): a picture carried over the board, under the pause screen. Lifted between
+   gaps, its shadow falls further away. */
+.duck-tongs{position:absolute;left:0;top:0;z-index:1;pointer-events:none;opacity:var(--shown,1);transform-origin:50% 50%;will-change:transform;filter:drop-shadow(calc(-2px - 5px * var(--lift,0)) calc(3px + 7px * var(--lift,0)) calc(2px + 3px * var(--lift,0)) #0007)}
+.duck-tongs svg{display:block;width:100%;height:100%;overflow:visible}
+.is-paused .duck-tongs{opacity:calc(var(--shown,1) * .35)}
+/* The loop switch (auto stacking on/off) sits in the top left corner of the pause screen, mirroring the
+   cone in the top right with the environment picker between them, in a box the cone's size: the word over a small track, the knob sliding across and the track turning green. */
+#loop{position:absolute;z-index:3;top:calc(14px + var(--safe-area-inset-top,env(safe-area-inset-top,0px)));left:calc(16px + var(--safe-area-inset-left,env(safe-area-inset-left,0px)));width:48px;height:48px;padding:0;display:grid;grid-template-rows:22px 1fr;justify-items:center;align-items:center;background:none;color:#faf9f6;opacity:0;pointer-events:none;transition:opacity 220ms ease-out;touch-action:manipulation}
+.is-paused #loop{opacity:1;pointer-events:auto;transition:opacity 420ms ease-out 120ms}
+.loop-label{font-size:16px;line-height:22px;white-space:nowrap;opacity:.6;transition:opacity 180ms}
+/* Off, the track is the same quiet fill as the environment picker beside it, with no outline; on, it is green. */
+.loop-track{position:relative;width:40px;height:18px;border-radius:9px;background:#faf9f612;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);transition:background-color 200ms}
+.loop-knob{position:absolute;top:3px;left:3px;width:12px;height:12px;border-radius:50%;background:#faf9f6;opacity:.6;transition:transform 220ms cubic-bezier(.3,.7,.3,1),opacity 200ms}
+#loop[aria-checked=true] .loop-label{opacity:1}
+#loop[aria-checked=true] .loop-track{background:#7BB794}
+#loop[aria-checked=true] .loop-knob{transform:translateX(22px);opacity:1}
+.render-failed #loop{display:none}
+/* Winter greeting (greeting.ts): cut-out letters in a shallow arc a little above the middle, each in a felt
+   colour with a cream edge (drawn behind it from data-letter, so the edge never eats into the letter).
+   Each comes down with a small swing and settles; let go, it falls away like a clump of snow. */
+#greeting{position:absolute;left:0;right:0;top:25%;top:max(25%,calc(var(--safe-area-inset-top,env(safe-area-inset-top,0px)) + 92px));height:0;z-index:1;pointer-events:none}
+#greeting .letter{position:absolute;display:block;opacity:0;text-align:center;white-space:pre;font-weight:700;line-height:1;transform-origin:50% 0;filter:drop-shadow(-.06em .09em .06em #0009);animation:greeting-in 640ms cubic-bezier(.3,.9,.4,1) both}
+#greeting .letter::before{content:attr(data-letter);position:absolute;inset:0;z-index:-1;color:#fbf3e4;-webkit-text-stroke:.17em #fbf3e4}
+#greeting .letter.red{color:#c2534f}
+#greeting .letter.gold{color:#c98f2b}
+#greeting .letter.green{color:#3d6a53}
+#greeting.out .letter{animation:greeting-out 900ms cubic-bezier(.5,0,.9,.6) both;animation-delay:var(--out)!important}
+@keyframes greeting-in{0%{opacity:0;transform:translateY(-36px) rotate(calc(var(--turn) - 16deg)) scale(.9)}55%{opacity:1;transform:translateY(3px) rotate(calc(var(--turn) + 5deg))}78%{transform:translateY(-1px) rotate(calc(var(--turn) - 2deg))}100%{opacity:1;transform:rotate(var(--turn))}}
+@keyframes greeting-out{0%{opacity:1;transform:rotate(var(--turn))}100%{opacity:0;transform:translateY(48px) rotate(calc(var(--turn) + 18deg))}}
+/* Gift blocks (gift.ts): the paper torn off a gift, as scraps flying out from it. */
+.gift-burst{position:absolute;z-index:1;width:0;height:0;pointer-events:none}
+.gift-burst span{position:absolute;left:0;top:0;margin:-4px 0 0 -4px;border-radius:2px;background:#4c8467;box-shadow:-1px 2px 2px #0005;animation:gift-tear 700ms cubic-bezier(.15,.7,.3,1) both}
+.gift-burst span.dotted{background:#4c8467 radial-gradient(circle,#f4ead6 0 22%,#0000 26%) 0 0/7px 7px}
+.gift-burst span.ribbon{background:#f4ead6}
+.gift-burst span.snow{margin:0;border-radius:50%;background:#fbfdff;box-shadow:none;animation:gift-snow 640ms cubic-bezier(.2,.7,.3,1) both}
+@keyframes gift-snow{0%{opacity:.95;transform:scale(.5)}60%{opacity:.8}100%{opacity:0;transform:translate(var(--dx),var(--dy)) scale(1.15)}}
+@keyframes gift-tear{0%{opacity:1;transform:rotate(var(--from)) scale(.6)}70%{opacity:1}100%{opacity:0;transform:translate(var(--dx),var(--dy)) rotate(var(--spin)) scale(1)}}
+/* Over a snow cover the pause screen's white writing would be lost, so winter dims the board under it. */
+#pause-actions{transition:background-color 320ms ease}
+.christmas.is-paused #pause-actions{background-color:#12161cb3}
 #session-limit,#export-status{font-size:14px;line-height:1.5;text-align:center;margin:0}
 #export-status:empty{display:none}
 /* Saved-photo card (saved-toast.ts): a thumbnail on a light sheet, as the picture sits in the photos app,

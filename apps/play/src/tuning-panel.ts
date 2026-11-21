@@ -1,21 +1,17 @@
-import { onTuning, setTuning, tuning, TUNING_DEFAULTS, TUNING_FIELDS, TUNING_GROUPS, type Tuning, type TuningField } from './tuning';
+import { onTuning, restoreSavedTuning, saveTuning as persist, setTuning, tuning, TUNING_DEFAULTS, TUNING_FIELDS, TUNING_GROUPS, type TuningField } from './tuning';
 import { ONBOARDING_DEFAULTS, ONBOARDING_PAGES, onboardingText, resetOnboarding, type OnboardingPage } from './onboarding';
 import { halloweenForCopy, mountHalloweenPanel } from './halloween-panel';
 
 /** Kept only on the tester's own device, so a planner's values survive reloads while polishing. */
-const STORAGE_KEY = 'blockstep.tuning', TEXT_KEY = 'blockstep.onboardingText';
+const TEXT_KEY = 'blockstep.onboardingText';
 
 function restore() {
-  try {
-    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}') as Partial<Tuning>;
-    for (const field of TUNING_FIELDS) if (typeof saved[field.key] === 'number') setTuning(field.key, saved[field.key]!);
-  } catch { /* Defaults stay. */ }
+  restoreSavedTuning();
   try {
     const saved = JSON.parse(localStorage.getItem(TEXT_KEY) ?? '{}') as Partial<Record<OnboardingPage, string>>;
     for (const { key } of ONBOARDING_PAGES) if (typeof saved[key] === 'string') onboardingText[key] = saved[key]!;
   } catch { /* Default copy stays. */ }
 }
-function persist() { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(tuning)); } catch { /* Session only. */ } }
 function persistText() { try { localStorage.setItem(TEXT_KEY, JSON.stringify(onboardingText)); } catch { /* Session only. */ } }
 
 const decimals = (step: number) => (String(step).split('.')[1] ?? '').length;

@@ -11,7 +11,7 @@ import { replaceIfStuck } from './audio-session';
  * 'off' has no deck either, so choosing it simply fades the ambience out.
  */
 
-export type Environment = 'off' | 'morning' | 'day' | 'night' | 'rain' | 'halloween';
+export type Environment = 'off' | 'morning' | 'day' | 'night' | 'rain' | 'halloween' | 'christmas';
 export interface Track {
   url: string;
   /** Integrated loudness of the recording, in LUFS. */

@@ -5,7 +5,13 @@ export type GuideKey = 'horizontal' | 'vertical';
 
 // Sizes are CSS pixels on screen, so the guide stays equally crisp on every device.
 const LINE_WIDTH = 1.5, DASH = 5, GAP = 4;
-const FILL = 'rgba(167, 200, 151, 0.17)', LINE = 'rgba(196, 219, 182, 0.9)';
+/** The guide's colours: the everyday soft green, and for the Christmas environment a frosted cream like
+ *  candle-lit snow, which sits with the red pavers, the snow and the string lights. */
+export const GUIDE_TONES = {
+  everyday: { fill: 'rgba(167, 200, 151, 0.17)', line: 'rgba(196, 219, 182, 0.9)' },
+  christmas: { fill: 'rgba(255, 244, 226, 0.16)', line: 'rgba(205, 188, 164, 0.82)' },
+};
+export type GuideTone = keyof typeof GUIDE_TONES;
 
 /** Follows the opaque silhouette clockwise (Moore neighbourhood). Points are 0..1 of the image. */
 export function traceOutline(alpha: (x: number, y: number) => boolean, width: number, height: number): [number, number][] {
@@ -51,6 +57,7 @@ export class LandingGuide {
   private cellPixels = 0;
   private pixelRatio = 1;
   private disposed = false;
+  private tone: GuideTone = 'everyday';
 
   constructor() {
     const make = () => {
@@ -89,6 +96,12 @@ export class LandingGuide {
     this.draw('horizontal'); this.draw('vertical');
   }
 
+  /** Recolours the guide for the environment. */
+  setTone(tone: GuideTone) {
+    if (tone === this.tone) return;
+    this.tone = tone; this.draw('horizontal'); this.draw('vertical');
+  }
+
   private draw(key: GuideKey) {
     const outline = this.outlines[key], aspect = this.aspect[key];
     if (!outline || !aspect || !this.cellPixels) return;
@@ -108,12 +121,12 @@ export class LandingGuide {
       perimeter += Math.hypot(x - pu * canvas.width, y - pv * canvas.height);
     });
     context.closePath();
-    context.fillStyle = FILL; context.fill();
+    context.fillStyle = GUIDE_TONES[this.tone].fill; context.fill();
     // Clip so the whole stroke sits inside the silhouette and never paints over a neighbour.
     context.save(); context.clip();
     const unit = (DASH + GAP) * this.pixelRatio, fit = perimeter / (Math.max(1, Math.round(perimeter / unit)) * unit);
     context.setLineDash([DASH * this.pixelRatio * fit, GAP * this.pixelRatio * fit]);
-    context.lineWidth = LINE_WIDTH * this.pixelRatio * 2; context.lineJoin = 'round'; context.strokeStyle = LINE;
+    context.lineWidth = LINE_WIDTH * this.pixelRatio * 2; context.lineJoin = 'round'; context.strokeStyle = GUIDE_TONES[this.tone].line;
     context.stroke(); context.restore();
     // The canvas size may have changed; release the old GPU storage before re-uploading.
     texture.dispose(); texture.needsUpdate = true;

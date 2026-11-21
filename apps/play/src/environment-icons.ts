@@ -1,7 +1,7 @@
 import type { Environment } from './ambience';
 
 /** The environments the picker offers. Morning and night are switched off for now. */
-export type PickedEnvironment = Extract<Environment, 'off' | 'day' | 'rain' | 'halloween'>;
+export type PickedEnvironment = Extract<Environment, 'off' | 'day' | 'rain' | 'halloween' | 'christmas'>;
 
 /**
  * Line icons for the environment picker, drawn on a 24px grid with round caps so they sit with the
@@ -23,4 +23,8 @@ export const environmentIcons: Record<PickedEnvironment, string> = {
   // Event: a jack-o'-lantern whose face glows while selected.
   halloween: svg(`<path d="M12 7.5c-1.2-1.3-3.9-1.5-5.6.2-2.2 2.2-2.2 7.8 0 10 1.7 1.7 4.4 1.5 5.6.3 1.2 1.2 3.9 1.4 5.6-.3 2.2-2.2 2.2-7.8 0-10-1.7-1.7-4.4-1.5-5.6-.2Z"/><path d="M12 7.5c.1-1.4.7-2.4 1.8-3"/>
     <g class="face"><path d="m8.6 11.6 1.3-1.1.6 1.4Z"/><path d="m15.4 11.6-1.3-1.1-.6 1.4Z"/><path d="M8.8 14.6c1.9 1.2 4.5 1.2 6.4 0"/></g>`),
+  // Event: a snow crystal pared down like the others: three short strokes crossing, and a dot off the
+  // end of each arm in place of drawn branches. It stays still.
+  christmas: svg(`<path d="M12 8.04v7.92M8.57 10.02l6.86 3.96M8.57 13.98l6.86-3.96"/>
+    <g class="flake"><path d="M12 4.95h.01"/><path d="M18.1 8.47h.01"/><path d="M18.1 15.53h.01"/><path d="M12 19.05h.01"/><path d="M5.9 15.53h.01"/><path d="M5.9 8.47h.01"/></g>`),
 };

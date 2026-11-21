@@ -82,6 +82,8 @@ export class Pavement {
     const p = this.landing(x, rotation);
     return this.place(p.x, p.y, rotation);
   }
+  /** Fill sealed spaces with one-cell pieces only (the snow-duck option), instead of the usual mix. */
+  singlesOnly = false;
   place(x: number, y: number, rotation: Rotation): Tile[] {
     if (this.atLimit) throw new Error('Session block limit reached');
     if (!Number.isInteger(y) || !this.canPlace(x, y, rotation) || this.landingFrom(x, y, rotation).y !== y) throw new Error('Tile must land in a free supported position');
@@ -90,10 +92,14 @@ export class Pavement {
     const added = [tile];
     // Every empty space this block just sealed off is paved with white fillers, lowest row first.
     for (const region of this.enclosedAround(tile)) {
-      for (const piece of tileRegion(region)) added.push(this.insert({ ...piece, white: true }));
+      for (const piece of tileRegion(region, this.singlesOnly)) added.push(this.insert({ ...piece, white: true }));
     }
     return added;
   }
+  /** Whether a paver (placed or filler) covers this cell. */
+  filledAt(x: number, y: number) { return x >= 0 && x < WIDTH && y >= 0 && this.at(x, y) !== 0; }
+  /** The paver covering this cell, if any. */
+  tileAt(x: number, y: number): Tile | undefined { return this.filledAt(x, y) ? this.tiles[this.at(x, y) - 1] : undefined; }
   /** The tile id filling a cell, or 0. */
   private at(x: number, y: number) { const i = y * WIDTH + x; return i < this.cells.length ? this.cells[i] : 0; }
   private empty(x: number, y: number) { return x >= 0 && x < WIDTH && y >= 0 && !this.at(x, y); }
@@ -164,14 +170,15 @@ export interface Piece { x: number; y: number; w: number; h: number; rotation: R
 /**
  * Paves a sealed region with white 1×1, 2×1 and 1×2 fillers, bottom row first and left to right, in
  * the order they will be laid. Where both long shapes fit, the choice alternates on a checkerboard so
- * the joints weave like the green pattern instead of lining up into long seams.
+ * the joints weave like the green pattern instead of lining up into long seams. With `singlesOnly`
+ * every cell gets a 1×1 of its own.
  */
-export function tileRegion(cells: readonly Cell[]): Piece[] {
+export function tileRegion(cells: readonly Cell[], singlesOnly = false): Piece[] {
   const free = new Set(cells.map(([x, y]) => `${x},${y}`));
   const pieces: Piece[] = [];
   for (const [x, y] of cells.slice().sort((a, b) => a[1] - b[1] || a[0] - b[0])) {
     if (!free.has(`${x},${y}`)) continue;
-    const up = free.has(`${x},${y + 1}`), right = free.has(`${x + 1},${y}`);
+    const up = !singlesOnly && free.has(`${x},${y + 1}`), right = !singlesOnly && free.has(`${x + 1},${y}`);
     const tall = up && (!right || (x + y) % 2 === 1);
     const w = !tall && right ? 2 : 1, h = tall ? 2 : 1;
     for (let dx = 0; dx < w; dx++) for (let dy = 0; dy < h; dy++) free.delete(`${x + dx},${y + dy}`);

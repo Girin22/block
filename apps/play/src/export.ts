@@ -1,6 +1,7 @@
 import { WIDTH, type Pavement, type Tile } from '../../../packages/play-core';
 import { encodePNG } from './png';
-import { TILE_BLEED, tileArtwork, tileImages, type Artwork, type TileSkin } from './tile-assets';
+import { hasTileOverrides, TILE_BLEED, tileArtwork, tileImages, type Artwork, type TileSkin } from './tile-assets';
+import { lyingCanvas } from './lying';
 
 export const PNG_MAX_PIXELS = 32000000;
 export const PNG_MAX_HEIGHT = 65536;
@@ -29,11 +30,10 @@ function inline({ url, turn }: Artwork) {
   if (!inlined.has(key)) inlined.set(key, new Promise<string>((resolve, reject) => {
     const image = new Image();
     image.onload = () => {
-      const canvas = document.createElement('canvas');
-      canvas.width = turn ? image.naturalHeight : image.naturalWidth; canvas.height = turn ? image.naturalWidth : image.naturalHeight;
-      const context = canvas.getContext('2d')!;
-      if (turn) { context.translate(canvas.width, 0); context.rotate(Math.PI / 2); }
-      context.drawImage(image, 0, 0); resolve(canvas.toDataURL('image/png'));
+      // Lying flat, an upright picture is turned and re-shaded exactly as on screen (lying.ts).
+      if (turn) { lyingCanvas(image).then(canvas => resolve(canvas.toDataURL('image/png')), reject); return; }
+      const canvas = document.createElement('canvas'); canvas.width = image.naturalWidth; canvas.height = image.naturalHeight;
+      canvas.getContext('2d')!.drawImage(image, 0, 0); resolve(canvas.toDataURL('image/png'));
     };
     image.onerror = () => { inlined.delete(key); reject(new Error('Paver image failed')); };
     image.src = url;
@@ -46,7 +46,7 @@ function inline({ url, turn }: Artwork) {
  * tile wearing the same one as on screen (see tileArtwork). The everyday look needs no preparation.
  */
 export async function receiptArt(tiles: readonly Tile[], skin: TileSkin): Promise<ReceiptArt> {
-  if (skin === 'everyday') return EVERYDAY;
+  if (skin === 'everyday' && !hasTileOverrides(skin)) return EVERYDAY;
   const keyOf = (tile: Tile) => { const art = tileArtwork(tile, skin); return { art, key: `${tile.w}x${tile.h}:${art.turn ? 'turn:' : ''}${art.url}` }; };
   const ids = new Map<string, string>(), defs: Promise<string>[] = [];
   for (const tile of tiles) {

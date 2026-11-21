@@ -8,6 +8,8 @@ import { TILE_BLEED, tileArtwork, tileImage, type Artwork, type TileSkin } from 
 import { FallingShadow } from './falling-shadow';
 import { LandingGuide } from './landing-guide';
 import { wetTint, type Rain } from './rain';
+import { PIECE_MARGIN, type Snow } from './snow';
+import { lyingCanvas } from './lying';
 import { tuning } from './tuning';
 
 const VIEW_WIDTH = WIDTH + .28;
@@ -70,6 +72,10 @@ export class PlayScene {
   private glitchAmount = 0;
   /** Whether the glitch pass has been drawn once; until then its first use would stall on shader compiling. */
   private glitchReady = false;
+  /** The snow cover: one picture in board coordinates, under the falling block (snow.ts draws it). */
+  private snowCover?: { mesh: THREE.Mesh; texture: THREE.CanvasTexture; width: number; height: number };
+  /** The same snow on the block in play, carried along with it. */
+  private pieceSnow?: { mesh: THREE.Mesh; texture: THREE.CanvasTexture; width: number; height: number };
   private post?: { target: THREE.WebGLRenderTarget; scene: THREE.Scene; camera: THREE.Camera; material: THREE.ShaderMaterial };
   private settled = new Map<number, THREE.Mesh>();
   private active: THREE.Mesh;
@@ -94,14 +100,18 @@ export class PlayScene {
   private dropping?: { from: THREE.Vector3; to: THREE.Vector3; elapsed: number; duration: number; done: () => void };
   private observer: ResizeObserver;
   /** What the last drawn frame showed, to skip redrawing a still picture (battery and heat). */
-  private shown = new Float64Array(18);
+  private shown = new Float64Array(19);
   private lastChange = 0;
   private lastDraw = -Infinity;
   /** Fires as a white filler seats on screen; the game plays its sound here. */
+  /** Tiles drawn over the snow cover instead of under it (a snow duck sits on the snow in its gap). */
+  above?: (tile: Tile) => boolean;
+  /** Fillers that are not lowered in but simply there (a snow duck's gap, which the tongs fill). */
+  instant?: (tile: Tile) => boolean;
   onFillSeat?: () => void;
   /** Fires as each white filler is wedged into its slot (sound or not); a witch paver's glitch comes here. */
   onFillSeated?: (tile: Tile) => void;
-  constructor(private canvas: HTMLCanvasElement, private board: Pavement, private onAutoLand: () => void, private rain?: Rain) {
+  constructor(private canvas: HTMLCanvasElement, private board: Pavement, private onAutoLand: () => void, private rain?: Rain, private snow?: Snow) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
     this.scene.background = DRY_GROUND.clone();
@@ -123,12 +133,9 @@ export class PlayScene {
     texture.anisotropy = Math.min(4, this.renderer.capabilities.getMaxAnisotropy());
     const image = new Image();
     image.onload = () => {
-      if (turn) {
-        const canvas = document.createElement('canvas'); canvas.width = image.naturalHeight; canvas.height = image.naturalWidth;
-        const context = canvas.getContext('2d')!; context.translate(canvas.width, 0); context.rotate(Math.PI / 2); context.drawImage(image, 0, 0);
-        texture.image = canvas;
-      } else texture.image = image;
-      texture.needsUpdate = true; this.lastChange = performance.now();
+      const show = (picture: HTMLImageElement | HTMLCanvasElement) => { texture.image = picture; texture.needsUpdate = true; this.lastChange = performance.now(); };
+      // An upright picture lying flat is turned and re-shaded, so the stone's side shows along the bottom.
+      if (turn) void lyingCanvas(image).then(show, () => show(image)); else show(image);
     };
     image.src = url;
     this.textures.set(key, texture);
@@ -145,6 +152,7 @@ export class PlayScene {
   setSkin(skin: TileSkin) {
     if (skin === this.skin) return;
     this.skin = skin;
+    this.guide.setTone(skin === 'christmas' ? 'christmas' : 'everyday');
     this.scene.background = skin === 'halloween' ? null : DRY_GROUND.clone();
     // The glitch pass is drawn once, invisibly, as the event starts: building its shader and frame
     // buffer on the first real glitch stalled a phone for a moment and swallowed the effect.
@@ -153,7 +161,10 @@ export class PlayScene {
   }
   /** Puts every paver (board, falling block, frame) in its current artwork, after a skin or weight change. */
   redress() {
-    for (const mesh of this.settled.values()) if (!mesh.userData.shadow) mesh.material = this.material(tileArtwork(mesh.userData.tile, this.skin));
+    for (const mesh of this.settled.values()) {
+      if (!mesh.userData.shadow) mesh.material = this.material(tileArtwork(mesh.userData.tile, this.skin));
+      mesh.userData.above = !!this.above?.(mesh.userData.tile); if (!mesh.userData.above) mesh.renderOrder = mesh.userData.tile.id;
+    }
     for (const mesh of this.frameTiles.values()) mesh.material = this.material(tileArtwork(mesh.userData.tile, this.skin));
     // Fillers still being lowered carry their own fading copy; they take the new artwork as they seat.
     this.orient(); this.lastChange = performance.now();
@@ -230,11 +241,13 @@ export class PlayScene {
   get cellPixels() { return this.canvas.clientWidth / VIEW_WIDTH; }
   get activeY() { return this.controlledY ?? this.center + this.halfHeight - this.spawnDepth(this.rotation) - size(this.rotation).h / 2; }
   /**
-   * Cells from the top of the view to a waiting block's centre: 2.2, or deeper while the onboarding
-   * holds the block still, so its top edge clears `spawnTop` (the Dynamic Island on an iPhone).
+   * Cells from the top of the view to a waiting block's centre. In play its top edge sits on `restTop`
+   * (the red button's top line, below an iPhone's Dynamic Island); while the onboarding holds the block
+   * still it waits deeper, its top edge clear of `spawnTop`. Without either line it is 2.2.
    */
   private spawnDepth(rotation: Rotation) {
-    return this.spawnTop === undefined ? 2.2 : Math.max(2.2, this.spawnTop / this.cellPixels + size(rotation).h / 2);
+    if (this.spawnTop !== undefined) return Math.max(2.2, this.spawnTop / this.cellPixels + size(rotation).h / 2);
+    return this.restTop === undefined ? 2.2 : this.restTop / this.cellPixels + size(rotation).h / 2;
   }
   get canRelease() {
     // Use the tile's lower edge in the current camera, not the finger or world origin.
@@ -249,6 +262,8 @@ export class PlayScene {
   holdFall = false;
   /** Onboarding: CSS px from the top of the view that a waiting block's top edge stays below. */
   spawnTop?: number;
+  /** CSS px from the top of the view where a new block's top edge appears in play: the red button's top line. */
+  restTop?: number;
   beginDrag() { this.start(); this.controlledY = this.activeY; this.held = true; this.contactTime = 0; }
   endDrag() { this.held = false; this.contactTime = 0; }
   lower(distance: number) {
@@ -272,6 +287,12 @@ export class PlayScene {
     return true;
   }
   get column() { return this.x; }
+  /** The board position under a point of the canvas (CSS pixels from its top left), in cells. */
+  boardPoint(x: number, y: number) { return { x: (WIDTH - VIEW_WIDTH) / 2 + x / this.cellPixels, y: this.center + this.halfHeight - y / this.cellPixels }; }
+  /** Where a board position is on the canvas, in CSS pixels from its top left. */
+  screenPoint(x: number, y: number) { return { x: (x - (WIDTH - VIEW_WIDTH) / 2) * this.cellPixels, y: (this.center + this.halfHeight - y) * this.cellPixels }; }
+  /** A settled paver swells for a moment and settles back (a gift being opened). */
+  pop(id: number) { const mesh = this.settled.get(id); if (mesh) mesh.userData.pop = this.animationTime; }
   /** Where the active block's centre is on screen, in CSS pixels from the canvas's top left (onboarding hints). */
   get activeScreen() {
     const point = this.active.position.clone().project(this.camera);
@@ -307,11 +328,11 @@ export class PlayScene {
       const mesh = new THREE.Mesh(tile.white && tile.w === 1 && tile.h === 1 ? this.square : this.dominoes[tile.rotation], material);
       mesh.position.set(tile.x + tile.w / 2, tile.y + tile.h / 2, 0);
       mesh.rotation.z = tile.rotation * Math.PI / 2;
-      mesh.renderOrder = tile.id;
+      mesh.renderOrder = tile.id; mesh.userData.above = !!this.above?.(tile);
       mesh.userData.born = this.animationTime; mesh.userData.white = tile.white; mesh.userData.tile = tile;
       mesh.userData.baseY = tile.y; mesh.userData.height = tile.h;
       this.scene.add(mesh); this.settled.set(tile.id, mesh);
-      if (!tile.white || !animate) continue;
+      if (!tile.white || !animate || this.instant?.(tile)) continue;
       // Lowered from just above: its own fading material and shadow exist only until it seats.
       mesh.userData.born = this.animationTime + delay + order * FILL_STAGGER / speed; mesh.userData.speed = speed; mesh.userData.sound = plan.seats.has(order);
       mesh.userData.spin = mesh.rotation.z; order++;
@@ -328,8 +349,10 @@ export class PlayScene {
     mesh.position.set(mesh.position.x, mesh.userData.baseY + mesh.userData.height / 2, 0); mesh.scale.set(1, 1, 1);
     mesh.rotation.z = mesh.userData.spin; mesh.userData.shadow = undefined;
   }
+  /** Whether a tile lies in its place (a filler still being lowered does not yet). */
+  seated(id: number) { return !this.settled.get(id)?.userData.shadow; }
   pause(value: boolean) {
-    this.paused = value;
+    this.paused = value; this.snow?.touch();
     // A paused summary shows completed joins, never a half-grown white filler.
     // Its sounds are dropped with it, so nothing plays late when play resumes.
     if (value) for (const mesh of this.settled.values()) { mesh.userData.born = Math.min(mesh.userData.born, this.animationTime - .5 / tuning.fillSpeed); }
@@ -341,7 +364,47 @@ export class PlayScene {
     (this.ghost.material as THREE.Material).dispose();
     this.materials.forEach(material => material.dispose()); this.textures.forEach(texture => texture.dispose());
     if (this.post) { this.post.target.dispose(); this.post.material.dispose(); }
+    if (this.snowCover) { this.snowCover.texture.dispose(); this.snowCover.mesh.geometry.dispose(); (this.snowCover.mesh.material as THREE.Material).dispose(); }
+    if (this.pieceSnow) { this.pieceSnow.texture.dispose(); this.pieceSnow.mesh.geometry.dispose(); (this.pieceSnow.mesh.material as THREE.Material).dispose(); }
     this.renderer.dispose();
+  }
+  /** Dresses the block in play in the snow that has fallen so far, so it lands as white as the rest. */
+  private wearSnow(now: number) {
+    const snow = this.snow!, opacity = snow.coverOpacity;
+    if (!this.pieceSnow) {
+      if (opacity <= 0) return;
+      const texture = new THREE.CanvasTexture(snow.piece); texture.colorSpace = THREE.SRGBColorSpace;
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: texture, transparent: true, depthWrite: false, toneMapped: false }));
+      this.scene.add(mesh); this.pieceSnow = { mesh, texture, width: 0, height: 0 };
+    }
+    const { mesh, texture } = this.pieceSnow, { w, h } = size(this.rotation), active = this.active;
+    const redrawn = snow.pieceCover(w, h);
+    mesh.visible = active.visible && opacity > 0; (mesh.material as THREE.MeshBasicMaterial).opacity = opacity;
+    // The picture is drawn for the block as it will lie; while the block is still turning, it turns with it.
+    mesh.scale.set((w + PIECE_MARGIN * 2) * active.scale.x, (h + PIECE_MARGIN * 2) * active.scale.y, 1);
+    mesh.position.set(active.position.x, active.position.y, active.position.z + 0.01);
+    mesh.rotation.z = active.rotation.z - this.spin; mesh.renderOrder = this.board.tiles.length + 4;
+    if (!redrawn) return;
+    if (this.pieceSnow.width !== snow.piece.width || this.pieceSnow.height !== snow.piece.height) { texture.dispose(); this.pieceSnow.width = snow.piece.width; this.pieceSnow.height = snow.piece.height; }
+    texture.needsUpdate = true; this.lastChange = now;
+  }
+  /** Lays the snow's cover picture over the settled pavers and the ground, under the block in play. */
+  private coverWithSnow(redrawn: boolean, now: number) {
+    const snow = this.snow!, opacity = snow.coverOpacity;
+    if (!this.snowCover) {
+      if (opacity <= 0) return;
+      const texture = new THREE.CanvasTexture(snow.cover); texture.colorSpace = THREE.SRGBColorSpace;
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: texture, transparent: true, depthWrite: false, toneMapped: false }));
+      this.scene.add(mesh); this.snowCover = { mesh, texture, width: snow.cover.width, height: snow.cover.height }; redrawn = true;
+    }
+    const { mesh, texture } = this.snowCover, rect = snow.rect;
+    mesh.visible = opacity > 0; (mesh.material as THREE.MeshBasicMaterial).opacity = opacity;
+    mesh.scale.set(rect.columns, rect.rows, 1); mesh.position.set(rect.x + rect.columns / 2, rect.y + rect.rows / 2, 0.05);
+    mesh.renderOrder = this.board.tiles.length + .5;
+    if (!redrawn) return;
+    // A picture of a new size needs new storage on the graphics card.
+    if (this.snowCover.width !== snow.cover.width || this.snowCover.height !== snow.cover.height) { texture.dispose(); this.snowCover.width = snow.cover.width; this.snowCover.height = snow.cover.height; }
+    texture.needsUpdate = true; this.lastChange = now;
   }
   /** Where the camera settles: the top of the stack held at the middle of the screen. */
   private get targetCenter() { return Math.max(this.halfHeight - 0.12, this.board.height + 0.6); }
@@ -365,6 +428,7 @@ export class PlayScene {
       for (const material of this.materials.values()) material.color.setRGB(r, g, b, THREE.SRGBColorSpace);
       if (this.scene.background) (this.scene.background as THREE.Color).lerpColors(DRY_GROUND, WET_GROUND, this.rain.wetness);
     }
+    if (this.snow) this.coverWithSnow(this.snow.frame(elapsed, { widthPx: this.canvas.clientWidth, heightPx: this.canvas.clientHeight, cellPx: this.cellPixels, left: (WIDTH - VIEW_WIDTH) / 2, top: this.center + this.halfHeight }), now);
     this.active.visible = !this.board.atLimit && !this.paused && !this.conceal;
     if (this.paused || this.conceal) this.ghost.visible = false;
     this.ghost.renderOrder = this.board.tiles.length + 1; this.fallingShadow.mesh.renderOrder = this.board.tiles.length + 2; this.active.renderOrder = this.board.tiles.length + 3;
@@ -393,10 +457,16 @@ export class PlayScene {
     this.active.scale.set(lift, lift, 1);
     this.active.rotation.z += (this.spin - this.active.rotation.z) * (1 - Math.exp(-dt * 28));
     this.fallingShadow.update(this.active, this.rotation, this.spin, this.board.landingFrom(this.x, this.activeY, this.rotation).y);
+    if (this.snow) this.wearSnow(now);
     let filling = false;
     for (const [id, mesh] of this.settled) {
+      if (mesh.userData.above) mesh.renderOrder = this.board.tiles.length + .7;
       if (mesh.position.y < this.center - this.halfHeight - 3) { this.seat(mesh); this.scene.remove(mesh); this.settled.delete(id); continue; }
       const shadow = mesh.userData.shadow as THREE.Mesh | undefined;
+      if (!shadow && mesh.userData.pop !== undefined) {
+        const t = (this.animationTime - mesh.userData.pop) / 0.34, swell = t >= 1 ? 1 : 1 + 0.16 * Math.sin(Math.PI * t);
+        mesh.scale.set(swell, swell, 1); if (t >= 1) mesh.userData.pop = undefined; else filling = true;
+      }
       if (!shadow) continue;
       // The white filler is lowered straight onto its slot: accelerating, rigid, flush on contact.
       filling = true;
@@ -433,7 +503,7 @@ export class PlayScene {
     const a = this.active, g = this.ghost, values = [
       this.center, a.position.x, a.position.y, a.rotation.z, a.scale.x, +a.visible,
       g.position.x, g.position.y, g.rotation.z, +g.visible, this.settled.size, this.board.tiles.length,
-      this.rain?.wetness ?? 0, this.canvas.width, this.canvas.height, this.frameTiles.size, +this.paused, +this.guide.ready,
+      this.rain?.wetness ?? 0, this.canvas.width, this.canvas.height, this.frameTiles.size, +this.paused, +this.guide.ready, this.snow?.coverOpacity ?? 0,
     ];
     let moved = filling;
     for (let i = 0; i < values.length; i++) {

@@ -289,6 +289,8 @@ export class Onboarding {
   /** Whether this gesture is open yet; once the tutorial's steps are done, every one is. */
   allows(gesture: Gesture) { return this.step === 'done' || this.step === 'restart' || this.unlocked.has(gesture); }
   get introShowing() { return this.step === 'intro'; }
+  /** The tutorial is over (auto stacking waits for this, so it never plays the steps for the player). */
+  get finished() { return this.step === 'done' || this.step === 'restart'; }
   /** The red button stays shut through the intro and while the guide lays its demo hole. */
   get pauseLocked() { return this.step === 'intro' || this.step === 'hole'; }
   /** The red-button line is showing over play. */

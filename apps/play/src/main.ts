@@ -9,12 +9,18 @@ import { showSavedToast } from './saved-toast';
 import { mountReceiptPreview } from './receipt-preview';
 import { PauseIcon } from './pause-icon';
 import { PlayTimer } from './play-timer';
-import { tileImages } from './tile-assets';
-import { leadPaver, onCue, onHalloween, PAVER_LIBRARY, pickPaver } from './halloween';
+import { onTileOverrides, slotPicture, tileImages, type TileSkin } from './tile-assets';
+import { cue, onCue, onHalloween, PAVER_LIBRARY, pickPaver } from './halloween';
 import { NightSky } from './night-sky';
 import { Glitches } from './glitches';
-import { eventOpen, HALLOWEEN } from './events';
+import { CHRISTMAS, eventOpen, GREETINGS, greetingPhrases, HALLOWEEN } from './events';
+import { Greeting } from './greeting';
+import { DuckTongs, ducksOn, prepareDucks } from './duck';
+import { giftsOn, isGiftTile, isOpened, openGift, prepareGifts, resetGifts, tearOpen } from './gift';
 import { Rain } from './rain';
+import { Snow } from './snow';
+import { AutoPlay } from './auto-stack';
+import { AUTO_PATTERNS, type AutoPattern } from '../../../packages/play-core/auto';
 import { RainAmbience } from './rain-sound';
 import pausePopURL from '../../../assets/sfx/pause-pop.wav?url';
 import resumePopURL from '../../../assets/sfx/resume-pop.wav?url';
@@ -31,8 +37,10 @@ import pohangMarketURL from '../../../assets/audio/거리/L03314-004.m4a?url';
 import ulsanStreetURL from '../../../assets/audio/거리/L03320-004.m4a?url';
 import halloweenLofiURL from '../../../assets/audio/할로윈/halloween-lofi.m4a?url';
 import misterioLofiURL from '../../../assets/audio/할로윈/misterio-lofi.m4a?url';
+import christmasLofiURL from '../../../assets/audio/크리스마스/christmas-lofi.m4a?url';
+import jazzChristmasURL from '../../../assets/audio/크리스마스/jazz-christmas.m4a?url';
 import { environmentIcons, type PickedEnvironment } from './environment-icons';
-import { onTuning } from './tuning';
+import { onTuning, tuning } from './tuning';
 import { installNative, isNativeApp, mixWithOtherAudio, nativeEffects, platform, saveExport } from './native';
 import { Onboarding } from './onboarding';
 import { playStudioIntro } from './studio-intro';
@@ -40,10 +48,14 @@ import { playStudioIntro } from './studio-intro';
 // Planner preview: the pause screen can switch the ambient environment. Not decided for release yet.
 // Morning and night are out of the app (2026-10-01); only off, street and rain remain.
 // Seasonal events join at the right end for their days (events.ts); admin builds always show them to test.
-const showEvents = new URLSearchParams(location.search).has('admin') || import.meta.env.VITE_ADMIN === '1';
+// A preview build (VITE_PREVIEW=1) is the one framed by the planner's review page: it shows every event too,
+// and hands that page its settings (preview-bridge.ts). It carries no admin panel of its own.
+const preview = import.meta.env.VITE_PREVIEW === '1';
+const showEvents = preview || new URLSearchParams(location.search).has('admin') || import.meta.env.VITE_ADMIN === '1';
 const ENVIRONMENTS: { id: PickedEnvironment; label: string; event?: boolean }[] = [
   { id: 'off', label: '환경음 끄기' }, { id: 'day', label: '거리' }, { id: 'rain', label: '비' },
   ...(showEvents || eventOpen(HALLOWEEN) ? [{ id: 'halloween' as const, label: '할로윈', event: true }] : []),
+  ...(showEvents || eventOpen(CHRISTMAS) ? [{ id: 'christmas' as const, label: '크리스마스', event: true }] : []),
 ];
 document.querySelector('#app')!.innerHTML = `<main class="play">
   <canvas id="playfield" tabindex="0" aria-label="블록 쌓기. 좌우 스와이프로 이동, 탭으로 회전, 아래 스와이프로 배치."></canvas>
@@ -63,6 +75,7 @@ document.querySelector('#app')!.innerHTML = `<main class="play">
     </div>
   </section>
   <button id="pause" aria-label="일시정지" aria-pressed="false" aria-controls="pause-actions"><canvas id="pause-animation" width="40" height="40" aria-hidden="true"></canvas></button>
+  <button id="loop" role="switch" aria-checked="false" aria-label="자동으로 쌓기" tabindex="-1"><span class="loop-label">루프</span><span class="loop-track" aria-hidden="true"><span class="loop-knob"></span></span></button>
 </main><dialog id="pause-menu" class="receipt-open" aria-label="이미지 저장"></dialog>`;
 const canvas = document.querySelector<HTMLCanvasElement>('#playfield')!;
 canvas.setAttribute('aria-label', '화면 어디서든 좌우 스와이프로 이동, 아래 스와이프로 내리기. 위로 이동 불가. 탭으로 회전.');
@@ -106,6 +119,18 @@ const weather = document.createElement('canvas'); weather.id = 'weather'; weathe
 // The rain recording is only requested once the rain environment is first chosen.
 const rainAmbience = new RainAmbience(rainSoundURL);
 canvas.after(weather); const rain = new Rain(weather, rainAmbience);
+// Christmas: flakes drift on their own canvas; the cover that builds up is drawn by the scene.
+const snowfall = document.createElement('canvas'); snowfall.id = 'snowfall'; snowfall.setAttribute('aria-hidden', 'true');
+weather.after(snowfall); const snow = new Snow(snowfall);
+// Winter's greeting hangs over the board for a moment; a preview or admin build shows both phrases on any date.
+const greeting = new Greeting(play);
+const greetingNow = () => showEvents ? [...GREETINGS] : greetingPhrases();
+const isGift = (tile?: { id: number; white: boolean; w: number; h: number }) => !!tile && tile.white && tile.w + tile.h === 2 && isGiftTile(tile.id) && skin() === 'christmas';
+/** Snow ducks: the one-cell fillers of the Christmas environment while that option is chosen. */
+const isDuck = (tile?: { white: boolean; w: number; h: number }) => !!tile && tile.white && tile.w + tile.h === 2 && ducksOn() && skin() === 'christmas';
+// A filler still being lowered into its gap is not there yet: its cell stays bare until it seats. A snow
+// duck's gap is open ground: the cover is laid on its floor too (thicker, see `floor`), and the duck sits on it.
+snow.ground = { filled: (column, row) => { const tile = board.tileAt(column, row); return !!tile && (!tile.white || !view || view.seated(tile.id)); }, floor: (column, row) => isDuck(board.tileAt(column, row)), height: () => board.height, joined: (x1, y1, x2, y2) => { const tile = board.tileAt(x1, y1); return !!tile && tile === board.tileAt(x2, y2); } };
 // Halloween's lantern light: a warm glow breathing in from the screen's edges over the night ground.
 const lantern = document.createElement('div'); lantern.id = 'lantern'; lantern.setAttribute('aria-hidden', 'true');
 weather.after(lantern);
@@ -144,9 +169,13 @@ const soundscape = new Soundscape({
   // Two lo-fi pieces (Pixabay Content License) in order, crossed over at their ends so they run as one
   // loop. Music sits 5 dB above the ambience level, and swells in slowly the first time it is heard.
   halloween: { repeat: false, ordered: true, fadeIn: 10, tracks: [{ url: halloweenLofiURL, lufs: -14.7, trim: 5 }, { url: misterioLofiURL, lufs: -19.1, trim: 5 }] },
+  // Winter plays the same way: a lo-fi piece, then a jazz one, round and round. It comes in sooner than
+  // Halloween (4 s), and the lo-fi piece's 3 quiet seconds of lead-in are cut from the file, so the music
+  // is there soon after the environment is chosen.
+  christmas: { repeat: false, ordered: true, fadeIn: 4, tracks: [{ url: christmasLofiURL, lufs: -11.3, trim: 5 }, { url: jazzChristmasURL, lufs: -15.9, trim: 5 }] },
 });
 /** The pavers' artwork follows the environment: only an event has its own. */
-const skin = () => soundscape.environment === 'halloween' ? 'halloween' : 'everyday';
+const skin = (): TileSkin => { const environment = soundscape.environment; return environment === 'halloween' || environment === 'christmas' ? environment : 'everyday'; };
 /**
  * Ambience keeps playing on the pause screen (the picker's X turns it off); it only holds while the page
  * is hidden. Browsers need a gesture to start it. It stays silent through the studio intro, whose own
@@ -187,13 +216,25 @@ let x = SPAWN_X, rotation: Rotation = SPAWN_ROTATION;
 let gesture: { id: number; x: number; y: number; lastY: number; column: number; moved: boolean; lowered: boolean; axis?: SwipeAxis } | undefined;
 // Development only: ?nowebgl fails the scene as if WebGL were off; ?nowebgl=ios|android|web picks whose guide shows.
 const noWebGL = import.meta.env.DEV ? new URLSearchParams(location.search).get('nowebgl') : null;
+/**
+ * A new block appears with its top edge on the red button's top line (2026-11-21): higher up, an
+ * iPhone's Dynamic Island covered it. Measured from layout, so the button's own animation does not move it.
+ */
+function measureRestTop() {
+  if (!view) return;
+  let top = 0;
+  for (let node: HTMLElement | null = document.querySelector<HTMLElement>('#pause'); node && node !== play; node = node.offsetParent as HTMLElement | null) top += node.offsetTop;
+  view.restTop = top > 0 ? top : undefined;
+}
 function createScene() {
   try {
     if (noWebGL !== null) throw new Error('WebGL turned off with ?nowebgl');
-    view = new PlayScene(canvas, board, drop, rain); view.aim(x, rotation); view.setSkin(skin());
+    view = new PlayScene(canvas, board, drop, rain, snow); view.aim(x, rotation); view.setSkin(skin());
+    view.instant = isDuck; view.above = isDuck;
+    measureRestTop(); addEventListener('resize', measureRestTop);
     view.onFillSeat = () => { if (!paused && !document.hidden) sound.place(true); };
     // The witch paver brings the glitch as it is wedged into its single gap.
-    view.onFillSeated = tile => { if (skin() === 'halloween' && tile.white && tile.w + tile.h === 2 && pickPaver('single', tile.id)?.id === 'witch') glitches.witch(); };
+    view.onFillSeated = tile => { snow.rustle([tile], 0.5); if (skin() === 'halloween' && tile.white && tile.w + tile.h === 2 && pickPaver('single', tile.id)?.id === 'witch') glitches.witch(); };
     if (import.meta.env.DEV && board.tiles.length) view.add(board.tiles.filter(tile => tile.y >= board.height - 24), false);
   }
   catch (error) {
@@ -254,7 +295,15 @@ function drop(auto = false) {
   const column = x, orientation = rotation;
   const landing = board.landingFrom(column, view.activeY, orientation);
   return new Promise<boolean>(placed => view.drop(() => {
-    const added = board.place(column, landing.y, orientation); view.add(added, true, onboarding.placed(added)); sound.place(); allowAmbience();
+    const added = board.place(column, landing.y, orientation);
+    // New gaps are told to the tongs before the scene dresses them, so they start as open gaps and not
+    // as finished ducks. They first take their snow, quickly; the tongs come once it has settled.
+    const gaps = added.filter(isDuck);
+    // (With the heap switched off there is nothing to wait for, and the tongs come at once.)
+    if (gaps.length) { const wait = tuning.duckHeap > 0 ? GAP_SNOW_SECONDS : 0.15; snow.gather(gaps, wait); tongs.add(gaps, wait + 0.15); }
+    view.add(added, true, onboarding.placed(added)); snow.rustle(added.filter(tile => !tile.white));
+    // The greeting comes with a block, once the snow has settled in, and never across the dog's path.
+    if (soundscape.environment === 'christmas' && snow.depth >= 1 && !snow.walking && onboarding.finished && greeting.due) greeting.show(greetingNow()); sound.place(); allowAmbience();
     // A fresh piece always enters at the current camera's upper center.
     x = SPAWN_X; rotation = SPAWN_ROTATION; view.spawn();
     if (board.atLimit) pause();
@@ -290,9 +339,21 @@ canvas.addEventListener('pointerup', event => {
   if (blocked()) return;
   const dx = event.clientX - g.x, dy = event.clientY - g.y;
   // During the tutorial a gesture does nothing until its step has opened it (see Onboarding.allows).
-  if (!g.moved && Math.hypot(dx, dy) < 12) { if (onboarding.allows('rotate')) aim(x, ((rotation + 1) % 4) as Rotation); }
+  if (!g.moved && Math.hypot(dx, dy) < 12) { if (!unwrapAt(event.clientX, event.clientY) && onboarding.allows('rotate')) aim(x, ((rotation + 1) % 4) as Rotation); }
   else if (g.lowered && isDownSwipe(dx, dy) && view.canRelease && onboarding.allows('place')) drop();
 });
+/** A tap on a wrapped gift block opens it instead of turning the block in play. */
+function unwrapAt(clientX: number, clientY: number) {
+  const bounds = canvas.getBoundingClientRect(), point = view.boardPoint(clientX - bounds.left, clientY - bounds.top);
+  const tile = board.tileAt(Math.floor(point.x), Math.floor(point.y));
+  if (!tile || !isGift(tile) || isOpened(tile.id)) return false;
+  // The snow on the gift goes with the paper: that cell is bare again and gathers snow afresh.
+  const lying = snow.depthAt(tile.x, tile.y); snow.cleared([tile]);
+  openGift(tile.id); view.redress(); view.pop(tile.id); sound.place(true);
+  const centre = view.screenPoint(tile.x + 0.5, tile.y + 0.5), frame = play.getBoundingClientRect();
+  tearOpen(play, bounds.left - frame.left + centre.x, bounds.top - frame.top + centre.y, view.cellPixels, lying);
+  return true;
+}
 function cancelGesture() { if (gesture) { gesture = undefined; view?.endDrag(); } }
 canvas.addEventListener('pointercancel', cancelGesture);
 canvas.addEventListener('lostpointercapture', cancelGesture);
@@ -318,7 +379,7 @@ function updatePauseUI() {
   pauseIcon.setPaused(paused);
 }
 function pause() {
-  onboarding.interrupt(); cancelGesture(); playTimer.pause(); view?.pause(true); sound.pause();
+  onboarding.interrupt(); cancelGesture(); greeting.cancel(); playTimer.pause(); view?.pause(true); sound.pause();
   if (paused) return;
   paused = true;
   document.querySelector('#path-length')!.textContent = formatMeters(board.filled);
@@ -332,15 +393,51 @@ function resume() {
   view?.pause(false); sound.unlock(); playAmbience(); canvas.focus({ preventScroll: true });
 }
 const environmentButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('#environment [data-environment]'));
+/** Event environments the preview page has taken out of the picker, to see the pause screen with fewer of them. */
+const hiddenEvents = new Set<Environment>();
+const pickable = () => ENVIRONMENTS.filter(({ id }) => !hiddenEvents.has(id));
 function showEnvironment() {
-  const index = ENVIRONMENTS.findIndex(({ id }) => id === soundscape.environment);
-  document.querySelector<HTMLElement>('#environment')!.style.setProperty('--selected', String(index));
-  environmentButtons.forEach((button, i) => { button.setAttribute('aria-checked', String(i === index)); button.tabIndex = i === index ? 0 : -1; });
+  const picker = document.querySelector<HTMLElement>('#environment')!, shown = pickable();
+  picker.style.setProperty('--count', String(shown.length));
+  // The thumb counts places among the buttons on show.
+  picker.style.setProperty('--selected', String(shown.findIndex(({ id }) => id === soundscape.environment)));
+  environmentButtons.forEach(button => {
+    const id = button.dataset.environment as Environment, chosen = id === soundscape.environment;
+    button.hidden = hiddenEvents.has(id); button.setAttribute('aria-checked', String(chosen)); button.tabIndex = chosen ? 0 : -1;
+  });
 }
+/** Preview page: puts an event environment in the picker or takes it out. One that is chosen gives way to the street. */
+function showEvent(environment: Environment, on: boolean) {
+  if (on) hiddenEvents.delete(environment); else hiddenEvents.add(environment);
+  if (!on && soundscape.environment === environment) chooseEnvironment('day'); else showEnvironment();
+}
+/** Seconds for snow to gather on the floor of a new gap before the tongs set to work. */
+const GAP_SNOW_SECONDS = 0.9;
+// Snow ducks: the tongs travel over the board and press a duck into each one-cell gap as it appears.
+const tongs = new DuckTongs(play, {
+  place: (column, row) => { if (!view) return undefined; const bounds = canvas.getBoundingClientRect(), frame = play.getBoundingClientRect(), point = view.screenPoint(column, row); return { x: bounds.left - frame.left + point.x, y: bounds.top - frame.top + point.y, cell: view.cellPixels }; },
+  held: () => paused || menu.open,
+  made: tile => { view?.redress(); view?.pop(tile.id); if (!paused && !document.hidden) sound.place(true); snow.burst(tile.x, tile.y); snow.spend(tile.x, tile.y); },
+});
+/** Spaces are filled with one-cell pieces only while the ducks are on show. */
+function applyFillRule() { board.singlesOnly = ducksOn() && skin() === 'christmas'; }
+let ducksShown = false, duckKind = tuning.duckKind, duckTilt = tuning.duckTilt;
+onTuning(() => {
+  applyFillRule();
+  if (duckKind !== tuning.duckKind || duckTilt !== tuning.duckTilt) { duckKind = tuning.duckKind; duckTilt = tuning.duckTilt; view?.redress(); }
+  if (ducksOn() === ducksShown) return;
+  ducksShown = ducksOn();
+  if (ducksShown) void prepareDucks().then(() => view?.redress()); else tongs.finishAll();
+  view?.redress(); snow.touch();
+});
 // The choice stays on the device, so X keeps another app's music playing from the next launch on.
 const ENVIRONMENT_KEY = 'bodobodo.environment';
 function chooseEnvironment(environment: Environment) {
-  soundscape.select(environment); rain.set(environment === 'rain');
+  // Choosing an environment the preview page had hidden puts it back in the picker.
+  hiddenEvents.delete(environment);
+  soundscape.select(environment); rain.set(environment === 'rain'); snow.set(environment === 'christmas');
+  if (environment !== 'christmas') { greeting.cancel(); tongs.finishAll(); }
+  applyFillRule();
   // X lets the game's sound mix with music from another app instead of stopping it. In the iOS app the
   // page then holds no audio: the effects go to the app's own player, and the rain lets go once faded.
   const mix = environment === 'off';
@@ -349,7 +446,7 @@ function chooseEnvironment(environment: Environment) {
   try { localStorage.setItem(ENVIRONMENT_KEY, environment); } catch { /* Chosen for this run only. */ }
   // An event dresses the board, the pause screen's counters and the light; the others keep the everyday look.
   const event = environment === 'halloween';
-  view?.setSkin(skin()); play.classList.toggle('halloween', event);
+  view?.setSkin(skin()); play.classList.toggle('halloween', event); play.classList.toggle('christmas', environment === 'christmas');
   nightSky.setActive(event); glitches.setActive(event); showStatIcons();
   // Unlocking inside the tap lets the rain recording start later, when play resumes.
   if (environment === 'rain') rainAmbience.unlock();
@@ -365,21 +462,29 @@ document.querySelector<HTMLElement>('#environment')!.addEventListener('keydown',
   const step = ['ArrowRight', 'ArrowDown'].includes(event.key) ? 1 : ['ArrowLeft', 'ArrowUp'].includes(event.key) ? -1 : 0;
   if (!step) return;
   event.preventDefault();
-  const index = (ENVIRONMENTS.findIndex(({ id }) => id === soundscape.environment) + step + ENVIRONMENTS.length) % ENVIRONMENTS.length;
-  chooseEnvironment(ENVIRONMENTS[index].id); environmentButtons[index].focus();
+  const shown = pickable(), next = shown[(shown.findIndex(({ id }) => id === soundscape.environment) + step + shown.length) % shown.length].id;
+  chooseEnvironment(next); environmentButtons.find(button => button.dataset.environment === next)?.focus();
 });
 showEnvironment();
 /** The pause screen's counters show the slot's most likely event paver while an event is on. */
 function showStatIcons() {
-  const event = skin() === 'halloween';
-  document.querySelector<HTMLImageElement>('.stat-icon')!.src = (event && leadPaver('block')?.url) || tileImages.vertical;
-  document.querySelector<HTMLImageElement>('.stat-icon.small')!.src = (event && leadPaver('single')?.url) || tileImages.center;
+  document.querySelector<HTMLImageElement>('.stat-icon')!.src = slotPicture('block', skin());
+  document.querySelector<HTMLImageElement>('.stat-icon.small')!.src = slotPicture('single', skin());
 }
 // The planner's Halloween edits (admin panel) apply at once: pavers, sky, glitch timing.
 onHalloween(settings => {
   view?.redress(); nightSky.apply(settings); glitches.apply(settings); showStatIcons();
   play.dataset.backdrop = settings.backdrop;
 });
+// Gift blocks: switching the option wraps or unwraps every one-cell filler at once (the pictures are drawn on first use).
+let giftsShown = false, giftShare = -1;
+onTuning(({ giftChance }) => {
+  if (giftsOn() === giftsShown && giftChance === giftShare) return;
+  giftsShown = giftsOn(); giftShare = giftChance; view?.redress();
+  if (giftsShown) void prepareGifts().then(() => view?.redress());
+});
+// A picture swapped into a slot (preview page) shows at once, on the board and the counters.
+onTileOverrides(() => { view?.redress(); showStatIcons(); });
 // "Try it now" from the panel. A visitor needs the event's sky, so it switches to Halloween first.
 onCue(value => {
   if (value === 'glitch') { glitches.now(); return; }
@@ -397,10 +502,10 @@ function closeReceipt() {
   document.querySelector('#receipt-image')!.replaceChildren();
 }
 function resetSession() {
-  gesture = undefined; view?.dispose(); sound.reset(); rain.clearMarks(); soundscape.newSession();
-  board = new Pavement(); started = new Date(); x = SPAWN_X; rotation = SPAWN_ROTATION; playTimer.reset();
+  gesture = undefined; view?.dispose(); sound.reset(); rain.clearMarks(); snow.newSession(); resetGifts(); tongs.reset(); soundscape.newSession();
+  board = new Pavement(); applyFillRule(); started = new Date(); x = SPAWN_X; rotation = SPAWN_ROTATION; playTimer.reset();
   limitNote.hidden = true; pauseButton.disabled = false;
-  createScene(); onboarding.apply(); view?.pause(paused);
+  createScene(); onboarding.apply(); view?.pause(paused); autoPlay.restart();
 }
 // Pausing from the onboarding's red-button line: "새로 쌓기" breathes for about 3 seconds to show it.
 let restartCue = 0;
@@ -412,6 +517,30 @@ pauseButton.addEventListener('click', () => {
   sound.button(paused ? 'resume' : 'pause');
   if (paused) { cueRestart(false); resume(); } else { cueRestart(onboarding.pauseTipShowing); pause(); }
 });
+/**
+ * Auto stacking: the game lays blocks in a pattern through the same aim and drop a touch uses. The
+ * button under "새로 쌓기" steps through off and each pattern; the choice stays on the device.
+ */
+let introOver = false;
+const autoPlay = new AutoPlay({
+  ready: () => introOver && !blocked() && !gesture && onboarding.finished,
+  tops: () => Array.from({ length: WIDTH }, (_, column) => board.landing(column, 1).y),
+  aim: (column, nextRotation) => { playTimer.start(); if (nextRotation !== rotation) aim(x, nextRotation); aim(column); },
+  drop: () => drop(),
+});
+const AUTO_KEY = 'bodobodo.auto';
+// The loop switch beside the cone: auto stacking on or off (one pattern, the pinwheel). It shows with the pause screen.
+const loopButton = document.querySelector<HTMLButtonElement>('#loop')!;
+function chooseAuto(pattern?: AutoPattern) {
+  autoPlay.set(pattern);
+  loopButton.setAttribute('aria-checked', String(!!pattern));
+  try { if (pattern) localStorage.setItem(AUTO_KEY, pattern); else localStorage.removeItem(AUTO_KEY); } catch { /* Chosen for this run only. */ }
+}
+loopButton.addEventListener('click', () => {
+  if (!paused || menu.open) return;
+  chooseAuto(autoPlay.pattern ? undefined : AUTO_PATTERNS[0].key);
+});
+try { chooseAuto(AUTO_PATTERNS.find(({ key }) => key === localStorage.getItem(AUTO_KEY))?.key); } catch { /* Off, as on a first launch. */ }
 restartButton.addEventListener('click', () => {
   if (!paused || menu.open || exporting) return;
   resetSession(); resume();
@@ -545,8 +674,20 @@ onboarding.apply();
 sound.unlock();
 const handOver = new Promise<void>(resolve => playStudioIntro(play, resolve, (white, inSeconds) => { if (sound.running) sound.place(white, INTRO_GAIN, inSeconds); }));
 // Without a board the onboarding never starts, so its "seen" mark waits for a launch that can play.
+void handOver.then(() => { introOver = true; });
 void Promise.all([adminReady, handOver]).then(() => { if (!view) return; if (onboarding.pauseLocked) allowAmbience(); onboarding.begin(); });
 pauseButton.disabled = board.atLimit || onboarding.pauseLocked; play.classList.toggle('onboarding-intro', onboarding.pauseLocked);
+if (preview) void import('./preview-bridge').then(({ installPreview }) => installPreview({
+  environments: ENVIRONMENTS, environment: () => soundscape.environment, chooseEnvironment,
+  eventShown: environment => !hiddenEvents.has(environment), showEvent,
+  auto: () => autoPlay.pattern, chooseAuto,
+  cue: name => {
+    if (name === 'glitch') glitches.now();
+    else if (name === 'bats') cue('bats');
+    else if (name === 'greeting') { if (soundscape.environment !== 'christmas') chooseEnvironment('christmas'); greeting.show([...GREETINGS]); }
+    else { if (soundscape.environment !== 'christmas') chooseEnvironment('christmas'); snow.visit(); }
+  },
+}));
 // App shell only: Android's back button opens the pause screen (and from there leaves the app), and
 // leaving the app holds play and sound the same way leaving the page does.
 void installNative({
