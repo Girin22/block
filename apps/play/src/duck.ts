@@ -51,6 +51,24 @@ export function duckArt(id: number) {
   if (!picture) drawn.set(key, picture = duckPicture(image, lean));
   return picture;
 }
+/**
+ * Draws every lean of the duck ahead of time, one picture at a time between frames. Each is drawn and
+ * encoded once; done as the first duck of that lean was pressed out, it made a phone stutter just then.
+ */
+let warming = 0;
+export function warmDucks() {
+  if (warming || !ducksOn()) return;
+  void prepareDucks().then(() => {
+    const wanted = tuning.duckKind || santaForced || santaDay() ? 1 : 0, kind = sources?.[wanted] ? wanted : 0, image = sources?.[kind];
+    if (!image) return;
+    const range = Math.round(tuning.duckTilt); let lean = -range;
+    const next = () => {
+      for (; lean <= range; lean++) { const key = `${kind}:${lean}`; if (!drawn.has(key)) { drawn.set(key, duckPicture(image, lean)); lean++; warming = window.setTimeout(next, 60); return; } }
+      warming = 0;
+    };
+    next();
+  });
+}
 
 const SIZE = 350;
 /**
@@ -111,7 +129,11 @@ const CLOSE = 0.14, PRESS = 0.26, OPEN = 0.24, LEAVE = 0.45, APPEAR = 0.28;
  */
 export class DuckTongs {
   private root = document.createElement('div');
-  private arms: SVGGElement[] = [];
+  private arms: HTMLElement[] = [];
+  private rims: HTMLElement[] = [];
+  private shades: HTMLElement[] = [];
+  /** What the layers were last given, so a frame that changes nothing writes nothing. */
+  private drawn: string[] = [];
   private queue: Cell[] = [];
   private raf = 0;
   private last = 0;
@@ -128,14 +150,14 @@ export class DuckTongs {
 
   constructor(parent: HTMLElement, private host: TongsHost) {
     this.root.className = 'duck-tongs'; this.root.setAttribute('aria-hidden', 'true'); this.root.hidden = true;
-    const svg = document.createElementNS(NS, 'svg');
-    svg.setAttribute('viewBox', `${-REACH / 2} ${-REACH / 2} ${REACH} ${REACH}`);
+    // Each part is a still picture on a layer of its own, and the frame only moves, turns and fades the
+    // layers (2026-11-22). Before, the jaws were turned inside one picture under a drop shadow that changed
+    // with the lift, so a phone drew and blurred the whole tool again every frame, and stuttered.
     // The tool lies at a slant, handles off towards the lower right, as a hand would hold it.
-    const tool = document.createElementNS(NS, 'g'); tool.setAttribute('transform', 'rotate(-38)');
     // Light from the top of the screen. The tool is turned 38 degrees and one arm mirrors the other, so
     // each half of the mould gets its own highlight centre, both towards the top of the screen.
     const dome = '<stop offset="0" stop-color="#ffe85e"/><stop offset="0.4" stop-color="#ffd117"/><stop offset="1" stop-color="#eeb200"/>';
-    svg.innerHTML = `<defs>
+    const defs = `<defs>
       <radialGradient id="tongs-dome-a" gradientUnits="userSpaceOnUse" cx="-0.22" cy="-0.2" r="0.75">${dome}</radialGradient>
       <radialGradient id="tongs-dome-b" gradientUnits="userSpaceOnUse" cx="0.02" cy="-0.22" r="0.75">${dome}</radialGradient>
       <clipPath id="tongs-half"><rect x="-1" y="-1" width="1.004" height="2"/></clipPath>
@@ -143,16 +165,21 @@ export class DuckTongs {
       <radialGradient id="tongs-inside" gradientUnits="userSpaceOnUse" cx="0.05" cy="0.1" r="0.6"><stop offset="0" stop-color="#d79a00"/><stop offset="0.7" stop-color="#e9ae00"/><stop offset="1" stop-color="#f6c416"/></radialGradient>
       <radialGradient id="tongs-pivot" cx="0.4" cy="0.32" r="0.75"><stop offset="0" stop-color="#ffe566"/><stop offset="0.55" stop-color="#ffcd0a"/><stop offset="1" stop-color="#dfa400"/></radialGradient>
     </defs>`;
+    const layer = (name: string, body: string) => {
+      const part = document.createElement('div'); part.className = name;
+      part.innerHTML = `<svg viewBox="${-REACH / 2} ${-REACH / 2} ${REACH} ${REACH}">${defs}<g transform="rotate(-38)">${body}</g></svg>`;
+      return part;
+    };
+    const bodies: string[] = [], rims: string[] = [];
     for (const side of [-1, 1]) {
-      const arm = document.createElementNS(NS, 'g');
       // One arm: half of the round mould, a neck down to the pivot, and past it the handle with its finger ring.
       // Moulded plastic with no drawn outline (2026-11-21, after the planner's rendered reference): each
       // part is shaded as a solid. A bar is a dark underside, its body, and a line of light along the top;
       // the head is a duck-shaped mould (2026-11-21, in place of the half dome) with a soft highlight, and,
-      // when the jaws are apart, its darker hollow.
+      // when the jaws are apart, its darker hollow (a layer of its own, faded in as they part).
       const key = side < 0 ? 'a' : 'b';
       const bar = (d: string) => `<path d="${d}" stroke="#e2a700" stroke-width="0.19" stroke-linecap="round"/><path d="${d}" stroke="#ffcd0a" stroke-width="0.15" stroke-linecap="round" transform="translate(0,-0.012)"/><path d="${d}" stroke="#ffe46a" stroke-width="0.04" stroke-linecap="round" opacity="0.85" transform="translate(-0.03,-0.03)"/>`;
-      arm.innerHTML = `<g transform="scale(${side},1)">
+      bodies.push(`<g transform="scale(${side},1)">
         ${bar('M-0.02 1.25 L0.3 2.0')}
         <circle cx="0.38" cy="2.26" r="0.21" fill="none" stroke="#e2a700" stroke-width="0.15"/>
         <circle cx="0.38" cy="2.25" r="0.21" fill="none" stroke="#ffcd0a" stroke-width="0.12"/>
@@ -165,16 +192,20 @@ export class DuckTongs {
           </g>
           <ellipse cx="-0.12" cy="-0.27" rx="0.05" ry="0.075" fill="#fff6c0" opacity="0.5"/>
           <ellipse cx="-0.255" cy="0.07" rx="0.045" ry="0.16" fill="#fff6c0" opacity="0.28"/>
+        </g>
+      </g>`);
+      rims.push(`<g transform="scale(${side},1)"><g clip-path="url(#tongs-half)" transform="translate(0,-0.03) scale(1.28,1.14)">
           <g class="inside" clip-path="url(#tongs-rim)">
             <g transform="rotate(90)" fill="url(#tongs-inside)">${DUCK_MOULD}</g>
           </g>
-        </g>
-      </g>`;
-      tool.append(arm); this.arms.push(arm);
+      </g></g>`);
     }
-    const pivot = document.createElementNS(NS, 'circle');
-    pivot.setAttribute('cx', '0'); pivot.setAttribute('cy', '1.25'); pivot.setAttribute('r', '0.12'); pivot.setAttribute('fill', 'url(#tongs-pivot)');
-    tool.append(pivot); svg.append(tool); this.root.append(svg); parent.append(this.root);
+    // From the board up: both arms' shadows, then each arm with the hollow of its mould, then the pivot.
+    this.shades = bodies.map(body => layer('shade', body));
+    this.arms = bodies.map(body => layer('arm', body));
+    this.rims = rims.map(rim => layer('rim', rim));
+    this.root.append(...this.shades, this.arms[0], this.rims[0], this.arms[1], this.rims[1], layer('pivot', '<circle cx="0" cy="1.25" r="0.12" fill="url(#tongs-pivot)"/>'));
+    parent.append(this.root);
   }
 
   /** New gaps to fill: they stay open until the tongs get to them. */
@@ -250,14 +281,18 @@ export class DuckTongs {
     if (spot) {
       const size = spot.cell * REACH;
       this.root.hidden = false;
-      this.root.style.width = this.root.style.height = `${size}px`;
+      const set = (slot: number, style: CSSStyleDeclaration, name: 'width' | 'height' | 'transform' | 'opacity', value: string) => { if (this.drawn[slot] !== value) { this.drawn[slot] = value; style[name] = value; } };
+      set(0, this.root.style, 'width', `${size}px`); set(1, this.root.style, 'height', `${size}px`);
       // Carried a little above the board between gaps (larger, its shadow further off), pressed flat onto it at work.
-      this.root.style.transform = `translate(${spot.x - size / 2}px,${spot.y - size / 2}px) scale(${1 + 0.1 * lift - 0.03 * (this.phase === 'press' ? 1 : 0)}) rotate(${shake * 3.5}deg)`;
-      this.root.style.setProperty('--lift', String(lift)); this.root.style.setProperty('--shown', String(this.shown));
+      set(2, this.root.style, 'transform', `translate(${spot.x - size / 2}px,${spot.y - size / 2}px) scale(${1 + 0.1 * lift - 0.03 * (this.phase === 'press' ? 1 : 0)}) rotate(${shake * 3.5}deg)`);
+      set(3, this.root.style, 'opacity', (this.shown * (this.host.held() ? 0.35 : 1)).toFixed(3));
       // The hollow of each mould shows only while the jaws are apart; closed, they make one duck.
-      for (const arm of this.arms) (arm.querySelector('.inside') as SVGGElement).style.opacity = String(Math.min(1, jaw * 1.6) * 0.85);
-      this.arms[0].setAttribute('transform', `rotate(${JAW * jaw} 0 1.25)`);
-      this.arms[1].setAttribute('transform', `rotate(${-JAW * jaw} 0 1.25)`);
+      const hollow = (Math.min(1, jaw * 1.6) * 0.85).toFixed(3);
+      for (let i = 0; i < 2; i++) {
+        const turn = `rotate(${((i ? -JAW : JAW) * jaw).toFixed(2)}deg)`;
+        set(4 + i, this.arms[i].style, 'transform', turn); set(6 + i, this.rims[i].style, 'transform', turn); set(8 + i, this.rims[i].style, 'opacity', hollow);
+        set(10 + i, this.shades[i].style, 'transform', `translate(${(-2 - 5 * lift).toFixed(1)}px,${(3 + 7 * lift).toFixed(1)}px) ${turn}`);
+      }
     }
     this.raf = requestAnimationFrame(this.frame);
   };

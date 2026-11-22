@@ -13,9 +13,9 @@ import { onTileOverrides, slotPicture, tileImages, type TileSkin } from './tile-
 import { cue, onCue, onHalloween, PAVER_LIBRARY, pickPaver } from './halloween';
 import { NightSky } from './night-sky';
 import { Glitches } from './glitches';
-import { CHRISTMAS, eventOpen, GREETINGS, greetingPhrases, HALLOWEEN } from './events';
+import { CHRISTMAS, eventOpen, GREETINGS, greetingPhrases, HALLOWEEN, winterOf } from './events';
 import { Greeting } from './greeting';
-import { DuckTongs, ducksOn, forceSanta, prepareDucks } from './duck';
+import { DuckTongs, ducksOn, forceSanta, prepareDucks, warmDucks } from './duck';
 import { giftsOn, isGiftTile, isOpened, openGift, prepareGifts, resetGifts, tearOpen } from './gift';
 import { Rain } from './rain';
 import { Snow } from './snow';
@@ -439,14 +439,14 @@ onTuning(() => {
   view?.redress(); snow.touch();
 });
 // The choice stays on the device, so X keeps another app's music playing from the next launch on.
-const ENVIRONMENT_KEY = 'bodobodo.environment';
+const ENVIRONMENT_KEY = 'bodobodo.environment', WINTER_KEY = 'bodobodo.winterOpened';
 function chooseEnvironment(environment: Environment, santa = false) {
   santa &&= environment === 'christmas';
   if (santa !== santaPicked) { santaPicked = santa; forceSanta(santa); view?.redress(); }
   // Choosing an environment the preview page had hidden puts it back in the picker.
   hiddenEvents.delete(environment);
   soundscape.select(environment); rain.set(environment === 'rain'); snow.set(environment === 'christmas');
-  if (environment !== 'christmas') { greeting.cancel(); tongs.finishAll(); }
+  if (environment !== 'christmas') { greeting.cancel(); tongs.finishAll(); } else warmDucks();
   applyFillRule();
   // X lets the game's sound mix with music from another app instead of stopping it. In the iOS app the
   // page then holds no audio: the effects go to the app's own player, and the rain lets go once faded.
@@ -466,6 +466,14 @@ try {
   // An event that has ended is gone from the picker, and street (the default) takes its place.
   const saved = ENVIRONMENTS.find(({ id }) => id === localStorage.getItem(ENVIRONMENT_KEY));
   if (saved && saved.id !== soundscape.environment) chooseEnvironment(saved.id);
+  // While winter is open it is what the game opens on (2026-11-22): a player who never looks at the picker
+  // would not know the update had brought it. Once each winter, on the first launch inside its dates; after
+  // that the player's own choice stands again, as it always has.
+  const winter = String(winterOf());
+  if ((check || (!showEvents && eventOpen(CHRISTMAS))) && localStorage.getItem(WINTER_KEY) !== winter) {
+    localStorage.setItem(WINTER_KEY, winter);
+    if (soundscape.environment !== 'christmas') chooseEnvironment('christmas');
+  }
 } catch { /* Street, as on a first launch. */ }
 environmentButtons.forEach(button => button.addEventListener('click', () => chooseEnvironment(button.dataset.environment as Environment, 'santa' in button.dataset)));
 document.querySelector<HTMLElement>('#environment')!.addEventListener('keydown', event => {

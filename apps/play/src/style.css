@@ -226,9 +226,12 @@ button:focus-visible{outline:2px solid #a7c897;outline-offset:4px}
 @media(max-width:599px){#export,#restart{font-size:calc(var(--text-size) * .8)}}
 /* Snow-duck tongs (duck.ts): a picture carried over the board, under the pause screen. Lifted between
    gaps, its shadow falls further away. */
-.duck-tongs{position:absolute;left:0;top:0;z-index:1;pointer-events:none;opacity:var(--shown,1);transform-origin:50% 50%;will-change:transform;filter:drop-shadow(calc(-2px - 5px * var(--lift,0)) calc(3px + 7px * var(--lift,0)) calc(2px + 3px * var(--lift,0)) #0007)}
+.duck-tongs{position:absolute;left:0;top:0;z-index:1;pointer-events:none;transform-origin:50% 50%;will-change:transform,opacity}
+/* Its parts are still pictures on layers of their own, turned about the pivot (duck.ts): only transforms and opacity change. */
+.duck-tongs>div{position:absolute;inset:0;transform-origin:62.83% 66.42%;will-change:transform}
+.duck-tongs>.rim{will-change:transform,opacity}
+.duck-tongs>.shade{filter:brightness(0) blur(2.5px);opacity:.42}
 .duck-tongs svg{display:block;width:100%;height:100%;overflow:visible}
-.is-paused .duck-tongs{opacity:calc(var(--shown,1) * .35)}
 /* The loop switch (auto stacking on/off) sits in the top left corner of the pause screen, mirroring the
    cone in the top right with the environment picker between them, in a box the cone's size: the word over a small track, the knob sliding across and the track turning green. */
 #loop{position:absolute;z-index:3;top:calc(14px + var(--safe-area-inset-top,env(safe-area-inset-top,0px)));left:calc(16px + var(--safe-area-inset-left,env(safe-area-inset-left,0px)));width:48px;height:48px;padding:0;display:grid;grid-template-rows:22px 1fr;justify-items:center;align-items:center;background:none;color:#faf9f6;opacity:0;pointer-events:none;transition:opacity 220ms ease-out;touch-action:manipulation}

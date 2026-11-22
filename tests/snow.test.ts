@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { WIDTH } from '../packages/play-core';
-import { CHRISTMAS, eventOpen, greetingPhrases, santaDay } from '../apps/play/src/events';
+import { CHRISTMAS, eventOpen, greetingPhrases, santaDay, winterOf } from '../apps/play/src/events';
 import { coverDepth, GAIT, planWalk } from '../apps/play/src/snow';
 import { setLine } from '../apps/play/src/greeting';
 
@@ -102,6 +102,11 @@ describe('animal tracks', () => {
       }
     });
   }
+  it('counts January and February with the winter that began the year before', () => {
+    expect(winterOf(new Date(2026, 10, 25))).toBe(2026);
+    expect(winterOf(new Date(2027, 1, 28))).toBe(2026);
+    expect(winterOf(new Date(2027, 10, 25))).toBe(2027);
+  });
   it('puts Santa hats on the snow ducks on Christmas Eve and Christmas Day only', () => {
     expect(santaDay(new Date(2026, 11, 24))).toBe(true);
     expect(santaDay(new Date(2026, 11, 25, 23, 59))).toBe(true);

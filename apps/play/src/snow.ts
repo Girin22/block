@@ -138,7 +138,7 @@ const cellKey = (x: number, y: number) => y * 16 + x + 2;
  * snow of its place gathers on it over `RUSTLE_SECONDS`, redrawn often enough to read as one movement.
  */
 export const FRESH = 0.3;
-const RUSTLE_SECONDS = 8, RUSTLE_REDRAW = 0.5, QUICK_REDRAW = 0.1;
+const RUSTLE_SECONDS = 8, RUSTLE_REDRAW = 0.5, QUICK_REDRAW = 0.15;
 /** Where the block in play's own snow is read from: mid-pavement, far below anything on the board. */
 const PIECE_HOME = { x: Math.floor(WIDTH / 2) - 1, y: -4000 };
 /** The falling block's own cover: this much room around its cells for the warped outline. */
