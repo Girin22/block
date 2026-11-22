@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { WIDTH } from '../packages/play-core';
 import { CHRISTMAS, eventOpen, greetingPhrases, santaDay, winterOf } from '../apps/play/src/events';
+import { SANTA_SHARE, santaShare } from '../apps/play/src/duck';
 import { coverDepth, GAIT, planWalk } from '../apps/play/src/snow';
 import { setLine } from '../apps/play/src/greeting';
 
@@ -106,6 +107,16 @@ describe('animal tracks', () => {
     expect(winterOf(new Date(2026, 10, 25))).toBe(2026);
     expect(winterOf(new Date(2027, 1, 28))).toBe(2026);
     expect(winterOf(new Date(2027, 10, 25))).toBe(2027);
+  });
+  it('gives about one duck in ten a Santa hat, the same ducks every time', () => {
+    let hats = 0;
+    for (let id = 1; id <= 5000; id++) if (santaShare(id) < SANTA_SHARE) hats++;
+    expect(hats).toBeGreaterThan(400); expect(hats).toBeLessThan(600);
+    // Neighbouring tiles are not all alike: within any run of forty there is a mix.
+    let longest = 0, run = 0;
+    for (let id = 1; id <= 5000; id++) { run = santaShare(id) < SANTA_SHARE ? run + 1 : 0; longest = Math.max(longest, run); }
+    expect(longest).toBeLessThan(6);
+    expect(santaShare(123)).toBe(santaShare(123));
   });
   it('puts Santa hats on the snow ducks on Christmas Eve and Christmas Day only', () => {
     expect(santaDay(new Date(2026, 11, 24))).toBe(true);
