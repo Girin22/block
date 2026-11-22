@@ -72,7 +72,11 @@ export interface SnowGround { filled(x: number, y: number): boolean; height(): n
 interface Flake { x: number; y: number; radius: number; age: number; life: number; fall: number; phase: number; alpha: number; }
 
 /** Cover picture: pixels per cell, and how often it is redrawn while the snow is still building up. */
-const CELL_PX = 40, COVER_INTERVAL = 1, PRINT_INTERVAL = 1.5;
+// (2026-11-22: each interval here was lengthened. Every redraw also sends the whole picture to the graphics
+// card again, and on a phone the winter environment ran hot and stuttered. Snow is slow; it does not show.)
+const CELL_PX = 40, COVER_INTERVAL = 1.5, PRINT_INTERVAL = 3, STEP_INTERVAL = 0.2;
+/** Seconds between redraws of the string lights: they glow slowly, so a third of the frames is plenty. */
+const LIGHTS_INTERVAL = 0.05, LIGHTS_MARGIN = 1;
 const COVER_COLUMNS = WIDTH + 2;
 /** Rows the picture holds beyond the view, below and above: the camera climbs this far before it is redrawn whole. */
 const ROWS_BELOW = 2, ROWS_ABOVE = 9;
@@ -134,7 +138,7 @@ const cellKey = (x: number, y: number) => y * 16 + x + 2;
  * snow of its place gathers on it over `RUSTLE_SECONDS`, redrawn often enough to read as one movement.
  */
 export const FRESH = 0.3;
-const RUSTLE_SECONDS = 8, RUSTLE_REDRAW = 0.33, QUICK_REDRAW = 0.07;
+const RUSTLE_SECONDS = 8, RUSTLE_REDRAW = 0.5, QUICK_REDRAW = 0.1;
 /** Where the block in play's own snow is read from: mid-pavement, far below anything on the board. */
 const PIECE_HOME = { x: Math.floor(WIDTH / 2) - 1, y: -4000 };
 /** The falling block's own cover: this much room around its cells for the warped outline. */
@@ -246,6 +250,13 @@ export class Snow {
   readonly cover = document.createElement('canvas');
   rect = { x: -1, y: 0, columns: COVER_COLUMNS, rows: 1 };
   private dirty = true;
+  /** The dog has pressed prints the picture does not show yet. */
+  private stepped = false;
+  /** The string lights as last drawn, laid under the flakes each frame. */
+  private lights?: HTMLCanvasElement;
+  private lightsAt = -Infinity;
+  private lightsDrawn = '';
+  private lightsTop = 0;
   private coverAt = -Infinity;
   private wholeAt = -Infinity;
   private drawnArea = -1;
@@ -399,7 +410,23 @@ export class Snow {
     // The string lights hang behind the falling snow.
     // They are part of the environment, not of the weather: they are there at once when it is chosen and
     // gone at once when it is left, while the snow itself still takes its time to stop and melt.
-    if (tuning.snowLights && this.snowing) drawLights(context, view, this.clock, 1);
+    // They are drawn on a picture of their own, afresh when the view has moved and otherwise a few times
+    // a second, and that picture is laid down each frame: one copy instead of every bulb and wire.
+    if (tuning.snowLights && this.snowing) {
+      // The picture reaches a cell beyond the view above and below, so while the camera climbs it is only
+      // slid along; it is drawn afresh a few times a second, or once the view has moved past that margin.
+      const lights = this.lights ??= document.createElement('canvas'), drawn = `${width}:${height}:${view.left}:${view.cellPx}`;
+      const margin = LIGHTS_MARGIN * view.cellPx, tall = view.heightPx + margin * 2;
+      if (drawn !== this.lightsDrawn || Math.abs(view.top - this.lightsTop) > LIGHTS_MARGIN || this.clock - this.lightsAt >= LIGHTS_INTERVAL) {
+        const layerHeight = Math.round(tall * ratio);
+        if (lights.width !== width || lights.height !== layerHeight) { lights.width = width; lights.height = layerHeight; }
+        const layer = lights.getContext('2d')!;
+        layer.setTransform(ratio, 0, 0, ratio, 0, 0); layer.clearRect(0, 0, view.widthPx, tall);
+        drawLights(layer, { ...view, top: view.top + LIGHTS_MARGIN, heightPx: tall }, this.clock, 1);
+        this.lightsDrawn = drawn; this.lightsAt = this.clock; this.lightsTop = view.top;
+      }
+      context.drawImage(lights, 0, (view.top - this.lightsTop) * view.cellPx - margin, view.widthPx, tall);
+    }
     const speed = tuning.snowSpeed, wanted = Math.round(tuning.snowAmount * this.intensity);
     // New flakes come in a few at a time, so a change of amount never arrives as one burst.
     for (let born = 0; this.flakes.length < wanted && born < 4; born++) {
@@ -458,7 +485,7 @@ export class Snow {
         // Nor in a snow duck's gap: the dog goes round the ducks, it does not tread on them.
         if (!this.gathers(x, y) || this.ground?.floor?.(x, y) || (!walk.forced && this.depthAt(x, y) < PRINT_MIN_DEPTH)) continue;
         this.prints.push({ x: step.x, y: step.y, angle: step.angle, fallen: this.fallen });
-        this.dirty = true;
+        this.stepped = true;
       }
       if (!walk.steps.length) { this.walk = undefined; this.nextWalk = undefined; }
       return;
@@ -558,6 +585,7 @@ export class Snow {
     // second is plenty for snow), while prints fill in, or when the view moved. A block gathering its
     // snow redraws just its own corner of the picture, a few times a second.
     const whole = this.dirty || outside || retuned
+      || (this.stepped && this.clock - this.wholeAt >= STEP_INTERVAL)
       || (this.depth < 1 && this.clock - this.wholeAt >= COVER_INTERVAL)
       || ((this.since.size > 0 || this.prints.length > 0) && this.clock - this.wholeAt >= PRINT_INTERVAL);
     // Where blocks are still gathering their snow, found afresh each time so it never outgrows them.
@@ -578,7 +606,7 @@ export class Snow {
     }
     if (!whole && !(box && this.clock - this.coverAt >= (quick ? QUICK_REDRAW : RUSTLE_REDRAW))) return false;
     this.dirty = false; this.coverAt = this.clock; this.drawnArea = tuning.snowArea; this.drawnCover = tuning.snowCover; this.drawnDucks = ducks;
-    if (whole) { this.wholeAt = this.clock; this.rect = { x: -1, y: Math.floor(bottom) - ROWS_BELOW, columns: COVER_COLUMNS, rows }; }
+    if (whole) { this.stepped = false; this.wholeAt = this.clock; this.rect = { x: -1, y: Math.floor(bottom) - ROWS_BELOW, columns: COVER_COLUMNS, rows }; }
     const { cover, rect } = this;
     if (cover.width !== rect.columns * CELL_PX || cover.height !== rect.rows * CELL_PX) { cover.width = rect.columns * CELL_PX; cover.height = rect.rows * CELL_PX; }
     const context = cover.getContext('2d')!;
