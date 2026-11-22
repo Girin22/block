@@ -15,7 +15,7 @@ import { NightSky } from './night-sky';
 import { Glitches } from './glitches';
 import { CHRISTMAS, eventOpen, GREETINGS, greetingPhrases, HALLOWEEN, winterOf } from './events';
 import { Greeting } from './greeting';
-import { DuckTongs, ducksOn, forceSanta, prepareDucks, warmDucks } from './duck';
+import { DuckTongs, ducksOn, forceSanta, isSantaDuck, prepareDucks, warmDucks } from './duck';
 import { giftsOn, isGiftTile, isOpened, openGift, prepareGifts, resetGifts, tearOpen } from './gift';
 import { Rain } from './rain';
 import { Snow, snowSpriteURLs } from './snow';
@@ -443,13 +443,20 @@ function receiptSnow() {
   if (skin() !== 'christmas') return undefined;
   return { sprites: snowSpriteURLs(), duck: (tile: { white: boolean; w: number; h: number }) => isDuck(tile), floor: tuning.duckFloor / 100, cover: Math.min(1, tuning.snowCover * 1.3) };
 }
+/** The sound of a duck in a Santa hat being pressed out: the short bright squeak (crunch.ts, draft 2). */
+const SANTA_SOUND = 2;
 /** Seconds for snow to gather on the floor of a new gap before the tongs set to work. */
 const GAP_SNOW_SECONDS = 0.9;
 // Snow ducks: the tongs travel over the board and press a duck into each one-cell gap as it appears.
 const tongs = new DuckTongs(play, {
   place: (column, row) => { if (!view) return undefined; const bounds = canvas.getBoundingClientRect(), frame = play.getBoundingClientRect(), point = view.screenPoint(column, row); return { x: bounds.left - frame.left + point.x, y: bounds.top - frame.top + point.y, cell: view.cellPixels }; },
   held: () => paused || menu.open,
-  made: tile => { view?.redress(); view?.pop(tile.id); if (!paused && !document.hidden) { if (tuning.duckSound) sound.crunch(tuning.duckSound); else sound.place(true); } snow.burst(tile.x, tile.y); snow.spend(tile.x, tile.y); },
+  made: tile => { view?.redress(); view?.pop(tile.id); {
+    // A duck in a Santa hat is a small event: the brighter squeak (draft 2) and a burst of sparkles with the snow.
+    const santa = isSantaDuck(tile.id);
+    if (!paused && !document.hidden) { if (santa) sound.crunch(SANTA_SOUND); else if (tuning.duckSound) sound.crunch(tuning.duckSound); else sound.place(true); }
+    snow.burst(tile.x, tile.y, 1, santa); snow.spend(tile.x, tile.y);
+  } },
 });
 /** Spaces are filled with one-cell pieces only while the ducks are on show. */
 function applyFillRule() { board.singlesOnly = ducksOn() && skin() === 'christmas'; }

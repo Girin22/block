@@ -43,7 +43,7 @@ export function duckArt(id: number) {
   if (waiting.has(id)) return none;
   // Plain ducks; on Christmas Eve and Christmas Day one in ten wears a Santa hat (2026-11-22: all of them
   // in hats was too much), which ones being fixed by the tile. A tester can ask for hats on every duck.
-  const wanted = tuning.duckKind || ((santaForced || santaDay()) && santaShare(id) < SANTA_SHARE) ? 1 : 0, kind = sources[wanted] ? wanted : 0, image = sources[kind];
+  const wanted = wearsHat(id) ? 1 : 0, kind = sources[wanted] ? wanted : 0, image = sources[kind];
   if (!image) return undefined;
   // The lean is fixed by the tile, so a duck keeps it across redraws and in the saved image.
   // Each leans its own way within tuning.duckTilt degrees either side, so a row of them is not stamped.
@@ -56,6 +56,10 @@ export function duckArt(id: number) {
  * Draws every lean of the duck ahead of time, one picture at a time between frames. Each is drawn and
  * encoded once; done as the first duck of that lean was pressed out, it made a phone stutter just then.
  */
+/** Whether a tile's duck is to wear the hat: all of them (duckKind 1), or its share on the two days (and whenever duckKind 2 asks to see that). */
+const wearsHat = (id: number) => tuning.duckKind === 1 || ((tuning.duckKind === 2 || santaForced || santaDay()) && santaShare(id) < SANTA_SHARE);
+/** Whether this tile's duck is one in a Santa hat: it is pressed out with a brighter sound and a few sparkles (main.ts). */
+export function isSantaDuck(id: number) { return ducksOn() && !!sources?.[1] && wearsHat(id); }
 /** The share of ducks in Santa hats on the two days, and a tile's own steady number in [0, 1) to set against it. */
 export const SANTA_SHARE = 0.1;
 export const santaShare = (id: number) => (Math.imul(id + 7, 0x9e3779b1) >>> 0) / 4294967296;
@@ -64,7 +68,7 @@ export function warmDucks() {
   if (warming || !ducksOn()) return;
   void prepareDucks().then(() => {
     // The plain duck unless every duck wears a hat; both on the two days, when a few do.
-    const kinds = (tuning.duckKind ? [1] : santaForced || santaDay() ? [0, 1] : [0]).filter(kind => sources?.[kind]);
+    const kinds = (tuning.duckKind === 1 ? [1] : tuning.duckKind === 2 || santaForced || santaDay() ? [0, 1] : [0]).filter(kind => sources?.[kind]);
     const range = Math.round(tuning.duckTilt); let turn = 0;
     const next = () => {
       for (; turn < kinds.length * (range * 2 + 1); turn++) {
