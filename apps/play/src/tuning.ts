@@ -97,13 +97,13 @@ export interface Tuning {
   duckFloor: number;
   /** Snow ducks: 0 the plain duck, 1 the duck in a Santa hat. */
   duckKind: number;
-  /** Snow ducks: the sound of one being pressed out. 0 the stone hit every filler makes; 1-4 drafts of a snow crunch (crunch.ts). */
+  /** Snow ducks: the sound of one being pressed out. 0 the stone hit every filler makes; 1-3 drafts of a snow crunch (crunch.ts). */
   duckSound: number;
   /** Snow ducks: each duck leans up to this many degrees either way. */
   duckTilt: number;
 }
 
-export const TUNING_DEFAULTS: Readonly<Tuning> = { rainSpeed: 1, rippleSize: 1, pauseGap: 1, fallSpeed: 1.1, fillSpeed: 1, typingSpeed: 14, inkSeconds: 0.6, pauseScale: 1, rhythmJitter: 1, stepFadeSeconds: 1.4, stepReadySeconds: 0.5, gestureHint: 1, onboardingSize: 1.5, onboardingPhoneScale: 0.8, introSweep: 1, introSweepSeconds: 6, stepSweepSeconds: 1.4, snowAmount: 90, snowSpeed: 1, snowWind: 0.25, snowSize: 1, snowAccumSeconds: 90, snowCover: 0.75, snowTracks: 1, snowTrackFrom: 18, snowTrackTo: 35, snowTrackDepth: 0.5, snowArea: 0, autoInterval: 0.9, greeting: 0, greetingHold: 2.8, greetingStagger: 0.09, greetingEvery: 5.5, giftWrap: 2, giftChance: 100, duckHeap: 0, duckHeapSpread: 50, duckFloor: 30, duckKind: 0, duckSound: 0, snowLights: 1, lightsColour: 0, lightsEffect: 3, lightsPitch: 0.95, lightsSpan: 98, lightsZigzag: 0.18, lightsJitterY: 10, lightsJitterX: 0.025, duckTilt: 15 };
+export const TUNING_DEFAULTS: Readonly<Tuning> = { rainSpeed: 1, rippleSize: 1, pauseGap: 1, fallSpeed: 1.1, fillSpeed: 1, typingSpeed: 14, inkSeconds: 0.6, pauseScale: 1, rhythmJitter: 1, stepFadeSeconds: 1.4, stepReadySeconds: 0.5, gestureHint: 1, onboardingSize: 1.5, onboardingPhoneScale: 0.8, introSweep: 1, introSweepSeconds: 6, stepSweepSeconds: 1.4, snowAmount: 90, snowSpeed: 1, snowWind: 0.25, snowSize: 1, snowAccumSeconds: 90, snowCover: 0.75, snowTracks: 1, snowTrackFrom: 18, snowTrackTo: 35, snowTrackDepth: 0.5, snowArea: 0, autoInterval: 0.9, greeting: 0, greetingHold: 2.8, greetingStagger: 0.09, greetingEvery: 5.5, giftWrap: 2, giftChance: 100, duckHeap: 0, duckHeapSpread: 50, duckFloor: 30, duckKind: 0, duckSound: 3, snowLights: 1, lightsColour: 0, lightsEffect: 3, lightsPitch: 0.95, lightsSpan: 98, lightsZigzag: 0.18, lightsJitterY: 10, lightsJitterX: 0.025, duckTilt: 15 };
 
 /** A `choices` field is a switch between labelled values instead of a gauge. */
 export type TuningGroup = 'weather' | 'snow' | 'lights' | 'tracks' | 'greeting' | 'gift' | 'screen' | 'block' | 'auto' | 'onboarding';
@@ -144,7 +144,7 @@ export const TUNING_FIELDS: readonly TuningField[] = [
   { key: 'duckHeapSpread', group: 'gift', label: '눈오리: 눈더미 퍼짐', min: 0, max: 100, step: 5, unit: '%', hint: v => v <= 15 ? '칸 가운데에 봉긋하게 뭉침' : v >= 85 ? '칸 전체에 고르게 깔림' : '가운데가 두껍고 가장자리로 갈수록 옅어짐' },
   { key: 'duckFloor', group: 'gift', label: '눈오리: 주변에 남는 눈', min: 0, max: 100, step: 5, unit: '%', hint: v => v <= 0 ? '눈오리 주변 바닥에 눈이 남지 않음 (어두운 바닥 그대로)' : '눈오리를 만든 뒤 그 칸 바닥에 남는 눈의 양' },
   { key: 'duckKind', group: 'gift', label: '눈오리: 그림', min: 0, max: 1, step: 1, unit: '', hint: v => v ? '날짜와 상관없이 산타 모자를 쓴 눈오리 (확인용)' : '기본 눈오리, 12월 24일·25일에만 산타 모자를 쓴 눈오리', choices: [{ value: 0, label: '날짜에 따라' }, { value: 1, label: '항상 산타 모자' }] },
-  { key: 'duckSound', group: 'gift', label: '눈오리: 찍히는 소리 (시안)', min: 0, max: 4, step: 1, unit: '', hint: v => v ? '눈을 꾹 누르는 뽀드득 소리 시안 (자동 쌓기를 켜 두면 눈오리가 찍힐 때마다 들림)' : '다른 채움 블록과 같은 벽돌 소리', choices: [{ value: 0, label: '벽돌 (지금)' }, { value: 1, label: '1 뽀드득' }, { value: 2, label: '2 뽀득' }, { value: 3, label: '3 꾹' }, { value: 4, label: '4 뽀드드득' }] },
+  { key: 'duckSound', group: 'gift', label: '눈오리: 찍히는 소리 (시안)', min: 0, max: 3, step: 1, unit: '', hint: v => v ? '눈을 꾹 누르는 뽀드득 소리 시안 (자동 쌓기를 켜 두면 눈오리가 찍힐 때마다 들림)' : '다른 채움 블록과 같은 벽돌 소리', choices: [{ value: 0, label: '벽돌' }, { value: 1, label: '1 뽀드득' }, { value: 2, label: '2 뽀득' }, { value: 3, label: '3 꾹' }] },
   { key: 'duckTilt', group: 'gift', label: '눈오리: 기울기 범위', min: 0, max: 25, step: 1, unit: '도', hint: v => v <= 0 ? '모든 눈오리가 똑바로 놓임' : `눈오리마다 ±${Math.round(v)}도 안에서 제각각 기울어 놓임` },
   { key: 'autoInterval', group: 'auto', label: '자동 쌓기 간격', min: 0.1, max: 3, step: 0.05, unit: '초', hint: v => `블록 하나가 놓이고 ${v.toFixed(2)}초 뒤에 다음 블록을 옮기기 시작함` },
   { key: 'pauseGap', group: 'screen', label: '일시정지 화면 상하 간격', min: 0.3, max: 2.5, step: 0.05, unit: '배', hint: v => `기본 간격(화면 높이의 3.8%, 14~34px)의 ${Math.round(v * 100)}%` },
