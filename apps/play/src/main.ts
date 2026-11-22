@@ -18,7 +18,7 @@ import { Greeting } from './greeting';
 import { DuckTongs, ducksOn, forceSanta, prepareDucks, warmDucks } from './duck';
 import { giftsOn, isGiftTile, isOpened, openGift, prepareGifts, resetGifts, tearOpen } from './gift';
 import { Rain } from './rain';
-import { Snow } from './snow';
+import { Snow, snowSpriteURLs } from './snow';
 import { AutoPlay } from './auto-stack';
 import { AUTO_PATTERNS, type AutoPattern } from '../../../packages/play-core/auto';
 import { RainAmbience } from './rain-sound';
@@ -419,6 +419,11 @@ function showEvent(environment: Environment, on: boolean) {
   if (on) hiddenEvents.delete(environment); else hiddenEvents.add(environment);
   if (!on && soundscape.environment === environment) chooseEnvironment('day'); else showEnvironment();
 }
+/** A saved image of the winter environment carries its snow (export.ts); elsewhere there is none to carry. */
+function receiptSnow() {
+  if (skin() !== 'christmas') return undefined;
+  return { sprites: snowSpriteURLs(), duck: (tile: { white: boolean; w: number; h: number }) => isDuck(tile), floor: tuning.duckFloor / 100, cover: Math.min(1, tuning.snowCover * 1.3) };
+}
 /** Seconds for snow to gather on the floor of a new gap before the tongs set to work. */
 const GAP_SNOW_SECONDS = 0.9;
 // Snow ducks: the tongs travel over the board and press a duck into each one-cell gap as it appears.
@@ -574,7 +579,7 @@ exportButton.addEventListener('click', async () => {
   exporting = true; exportButton.disabled = true; exportButton.textContent = '저장 중'; exportStatus.textContent = '';
   try {
     // Saved as it looks: an event saves its own pavers (each tile the same one as on screen).
-    const receipt = new Receipt(board, started, await receiptArt(board.tiles, skin()));
+    const receipt = new Receipt(board, started, await receiptArt(board.tiles, skin()), receiptSnow());
     let file: File;
     if (receipt.format === 'png' && typeof CompressionStream !== 'undefined') {
       file = await receiptPhoto(receipt, undefined, value => { exportButton.textContent = `저장 중 ${Math.round(value * 100)}%`; })
@@ -596,7 +601,7 @@ async function openReceipt() {
   generationAbort = new AbortController();
   const signal = generationAbort.signal;
   const generation = ++photoGeneration;
-  const receipt = new Receipt(board, started, await receiptArt(board.tiles, skin()));
+  const receipt = new Receipt(board, started, await receiptArt(board.tiles, skin()), receiptSnow());
   receiptStatus.textContent = '';
   photo = undefined; manualPhoto = false;
   saveButton.disabled = true; saveButton.textContent = '사진 준비 중…';
