@@ -30,6 +30,10 @@ export const CRUNCH_DRAFTS: readonly Draft[] = [
   { label: '꾹 (낮고 부드럽게)', seconds: 0.32, thump: 0.75, grains: [
     { at: 0.03, length: 0.2, from: 1100, to: 800, q: 1.4, stutter: 55, depth: 0.6, gain: 1 },
   ] },
+  // 뽀득 again, a few tones lower: the second draft's one short squeak, less bright.
+  { label: '뽀득 (낮게)', seconds: 0.17, thump: 0.45, grains: [
+    { at: 0.025, length: 0.085, from: 1450, to: 2000, q: 3, stutter: 115, depth: 0.7, gain: 1 },
+  ] },
 ];
 
 /** One draft as samples (mono, peak 0.8). `random` gives the noise, so a seeded one gives the same sound. */
