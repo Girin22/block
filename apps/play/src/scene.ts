@@ -13,6 +13,8 @@ import { lyingCanvas } from './lying';
 import { tuning } from './tuning';
 
 const VIEW_WIDTH = WIDTH + .28;
+/** Cells a new block is set below the red button's top line, so the edge of its picture stays under it. */
+const REST_CLEAR = 0.13;
 /** Seconds the scene keeps drawing every frame after the last visible change, and the slow redraw
  *  interval once it is still (covers images that finish loading while nothing moves). */
 const SETTLE_MS = 1000, IDLE_REDRAW_MS = 250;
@@ -247,7 +249,8 @@ export class PlayScene {
    */
   private spawnDepth(rotation: Rotation) {
     if (this.spawnTop !== undefined) return Math.max(2.2, this.spawnTop / this.cellPixels + size(rotation).h / 2);
-    return this.restTop === undefined ? 2.2 : this.restTop / this.cellPixels + size(rotation).h / 2;
+    // (A paver's picture reaches a little past its cells, so it is set that much lower: nothing shows above the line.)
+    return this.restTop === undefined ? 2.2 : this.restTop / this.cellPixels + size(rotation).h / 2 + REST_CLEAR;
   }
   get canRelease() {
     // Use the tile's lower edge in the current camera, not the finger or world origin.

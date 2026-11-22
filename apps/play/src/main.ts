@@ -231,12 +231,31 @@ function measureRestTop() {
   for (let node: HTMLElement | null = document.querySelector<HTMLElement>('#pause'); node && node !== play; node = node.offsetParent as HTMLElement | null) top += node.offsetTop;
   view.restTop = top > 0 ? top : undefined;
 }
+/**
+ * The button's line moves when the safe area does, and on an iPhone the safe area can arrive after the
+ * first layout without the window changing size: measured only once, the line was then the one for no
+ * safe area at all, and blocks appeared under the Dynamic Island on some phones and not on others
+ * (2026-11-22). So a hidden probe as tall as the safe area is watched, along with the window.
+ */
+let restWatched = false;
+function watchRestTop() {
+  if (restWatched) return;
+  restWatched = true;
+  addEventListener('resize', measureRestTop); addEventListener('orientationchange', measureRestTop);
+  document.addEventListener('visibilitychange', measureRestTop);
+  const probe = document.createElement('div');
+  probe.style.cssText = 'position:absolute;left:0;top:0;width:1px;visibility:hidden;pointer-events:none;height:var(--safe-area-inset-top,env(safe-area-inset-top,0px))';
+  play.append(probe);
+  if ('ResizeObserver' in window) new ResizeObserver(measureRestTop).observe(probe);
+  // And a few looks of its own over the first seconds, for a WebView that says nothing at all.
+  for (const ms of [250, 1000, 3000]) window.setTimeout(measureRestTop, ms);
+}
 function createScene() {
   try {
     if (noWebGL !== null) throw new Error('WebGL turned off with ?nowebgl');
     view = new PlayScene(canvas, board, drop, rain, snow); view.aim(x, rotation); view.setSkin(skin());
     view.instant = isDuck; view.above = isDuck;
-    measureRestTop(); addEventListener('resize', measureRestTop);
+    measureRestTop(); watchRestTop();
     view.onFillSeat = () => { if (!paused && !document.hidden) sound.place(true); };
     // The witch paver brings the glitch as it is wedged into its single gap.
     view.onFillSeated = tile => { snow.rustle([tile], 0.5); if (skin() === 'halloween' && tile.white && tile.w + tile.h === 2 && pickPaver('single', tile.id)?.id === 'witch') glitches.witch(); };
