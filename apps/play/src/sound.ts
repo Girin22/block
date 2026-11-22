@@ -12,7 +12,7 @@ import { replaceIfStuck } from './audio-session';
  */
 export const BUTTON_GAIN = 1;
 /** How loud the snow duck's crunch is beside the stone hits. */
-export const CRUNCH_GAIN = 0.6;
+export const CRUNCH_GAIN = 0.32;
 export type ButtonSound = 'pause' | 'resume';
 /** The studio intro's pavers land a little under the game's own (about -3 dB), as a prelude. */
 export const INTRO_GAIN = 0.7;

@@ -31,6 +31,9 @@ export function santaDay(date = new Date()) {
   return date.getMonth() === 11 && (date.getDate() === 24 || date.getDate() === 25);
 }
 
+/** The winter a date belongs to, named by the year it began in: January and February count with the year before. */
+export function winterOf(date = new Date()) { return date.getMonth() >= 6 ? date.getFullYear() : date.getFullYear() - 1; }
+
 /** Whether the event is open on this date. A window may run across the new year. */
 export function eventOpen(event: SeasonalEvent, date = new Date()) {
   const day = (date.getMonth() + 1) * 100 + date.getDate();
