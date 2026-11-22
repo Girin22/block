@@ -168,7 +168,9 @@ const PIECE_HOME = { x: Math.floor(WIDTH / 2) - 1, y: -4000 };
 export const PIECE_MARGIN = 0.25;
 
 /** A crumb of snow knocked loose, in board cells. */
-interface Puff { x: number; y: number; vx: number; vy: number; radius: number; age: number; life: number; }
+interface Puff { x: number; y: number; vx: number; vy: number; radius: number; age: number; life: number; /** A sparkle rather than a crumb: its colour, and where its twinkle starts. */ colour?: string; twinkle?: number; }
+/** The sparkles a duck in a Santa hat throws up as it is pressed out: the string lights' colours, brighter. */
+const SPARKLES = ['#fff3c4', '#ffd45e', '#fff3c4', '#ff8f80', '#ffffff', '#8fe6b4'];
 
 /**
  * String lights down both sides of the pavement (tuning.snowLights): a dark wire swaying gently along
@@ -351,7 +353,13 @@ export class Snow {
     return heap.from + (heap.to - heap.from) * t * t * (3 - 2 * t);
   }
   /** A burst of snow from the middle of a cell: crumbs thrown out all round, as a duck is pressed out. */
-  burst(x: number, y: number, amount = 1) {
+  burst(x: number, y: number, amount = 1, festive = false) {
+    // A duck in a Santa hat comes with a little show: sparkles in the lights' colours fly further and hang
+    // a moment longer than the crumbs of snow, twinkling as they go out.
+    if (festive) for (let i = 0, count = 22; i < count; i++) {
+      const turn = i / count * Math.PI * 2 + Math.random() * 0.6, speed = 1.9 + Math.random() * 2.6, start = 0.15 + Math.random() * 0.2;
+      this.puffs.push({ x: x + 0.5 + Math.cos(turn) * start, y: y + 0.5 + Math.sin(turn) * start, vx: Math.cos(turn) * speed, vy: Math.sin(turn) * speed + 0.25, radius: 0.11 + Math.random() * 0.11, age: -Math.random() * 0.1, life: 0.7 + Math.random() * 0.6, colour: SPARKLES[i % SPARKLES.length], twinkle: Math.random() * Math.PI * 2 });
+    }
     for (let i = 0, count = Math.round(16 * amount); i < count; i++) {
       const turn = i / count * Math.PI * 2 + Math.random() * 0.5, speed = 1.3 + Math.random() * 2.2, start = 0.2 + Math.random() * 0.15;
       this.puffs.push({ x: x + 0.5 + Math.cos(turn) * start, y: y + 0.5 + Math.sin(turn) * start, vx: Math.cos(turn) * speed, vy: Math.sin(turn) * speed - 0.3, radius: 0.035 + Math.random() * 0.07, age: -Math.random() * 0.04, life: 0.34 + Math.random() * 0.32 });
@@ -491,8 +499,20 @@ export class Snow {
       if (puff.age < 0) continue;
       const t = puff.age / puff.life, slow = Math.exp(-dt * 5);
       puff.x += puff.vx * dt; puff.y += puff.vy * dt; puff.vx *= slow; puff.vy *= slow;
+      const px = (puff.x - view.left) * view.cellPx, py = (view.top - puff.y) * view.cellPx;
+      if (puff.colour) {
+        // A four-pointed star with a soft halo, flickering as it fades.
+        const flicker = 0.6 + 0.4 * Math.sin(puff.age * 26 + (puff.twinkle ?? 0)), arm = puff.radius * view.cellPx * (1 - 0.3 * t) * (0.8 + 0.2 * flicker), waist = arm * 0.22;
+        context.fillStyle = puff.colour;
+        context.globalAlpha = 0.22 * (1 - t) * flicker; context.beginPath(); context.arc(px, py, arm * 1.25, 0, Math.PI * 2); context.fill();
+        context.globalAlpha = (1 - t * t) * flicker;
+        context.beginPath(); context.moveTo(px, py - arm); context.lineTo(px + waist, py - waist); context.lineTo(px + arm, py); context.lineTo(px + waist, py + waist);
+        context.lineTo(px, py + arm); context.lineTo(px - waist, py + waist); context.lineTo(px - arm, py); context.lineTo(px - waist, py - waist); context.closePath(); context.fill();
+        context.fillStyle = '#ffffff';
+        continue;
+      }
       context.globalAlpha = 0.95 * (1 - t * t);
-      context.beginPath(); context.arc((puff.x - view.left) * view.cellPx, (view.top - puff.y) * view.cellPx, puff.radius * view.cellPx * (1 - 0.45 * t), 0, Math.PI * 2); context.fill();
+      context.beginPath(); context.arc(px, py, puff.radius * view.cellPx * (1 - 0.45 * t), 0, Math.PI * 2); context.fill();
     }
     this.puffs.length = kept;
     context.globalAlpha = 1;
