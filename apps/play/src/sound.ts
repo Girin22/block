@@ -1,3 +1,4 @@
+import { crunchSamples } from './crunch';
 import { clackVoice, synthesize } from './audio';
 import { nextTrack } from './ambience';
 import { replaceIfStuck } from './audio-session';
@@ -10,6 +11,8 @@ import { replaceIfStuck } from './audio-session';
  * should. 2.5 (-22, the loudest sound in the game) was too loud in play, 2026-09-29.
  */
 export const BUTTON_GAIN = 1;
+/** How loud the snow duck's crunch is beside the stone hits. */
+export const CRUNCH_GAIN = 0.6;
 export type ButtonSound = 'pause' | 'resume';
 /** The studio intro's pavers land a little under the game's own (about -3 dB), as a prelude. */
 export const INTRO_GAIN = 0.7;
@@ -47,6 +50,7 @@ export class PlaySound {
   private hits?: Promise<AudioBuffer[]>;
   private decodedHits: AudioBuffer[] = [];
   private lastHit = -1;
+  private crunches = new Map<number, AudioBuffer>();
 
   constructor(private buttonURLs?: Record<ButtonSound, string>, private hitURLs: string[] = []) {}
 
@@ -116,6 +120,26 @@ export class PlaySound {
     source.connect(gain).connect(this.output);
     source.onended = () => { source.disconnect(); gain.disconnect(); };
     source.start(at);
+  }
+  /**
+   * A snow duck pressed out: draft `kind` (1 up) of the snow's crunch (crunch.ts), each press a touch
+   * higher or lower. Where the app plays the effects itself (iOS, X environment) the stone still stands in.
+   */
+  crunch(kind: number) {
+    if (this.native) { this.place(true); return; }
+    this.unlock(); const context = this.context;
+    if (!context || !this.output) return;
+    let buffer = this.crunches.get(kind);
+    if (!buffer) {
+      const samples = crunchSamples(kind - 1, context.sampleRate);
+      buffer = context.createBuffer(1, samples.length, context.sampleRate); buffer.getChannelData(0).set(samples);
+      this.crunches.set(kind, buffer);
+    }
+    const source = context.createBufferSource(), gain = context.createGain();
+    source.buffer = buffer; source.playbackRate.value = 0.93 + Math.random() * 0.14; gain.gain.value = CRUNCH_GAIN;
+    source.connect(gain).connect(this.output);
+    source.onended = () => { source.disconnect(); gain.disconnect(); };
+    source.start();
   }
   /** The pause button's press. Bypasses the limiter so it plays at exactly BUTTON_GAIN. */
   button(sound: ButtonSound) {

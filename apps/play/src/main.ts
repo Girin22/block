@@ -425,7 +425,7 @@ const GAP_SNOW_SECONDS = 0.9;
 const tongs = new DuckTongs(play, {
   place: (column, row) => { if (!view) return undefined; const bounds = canvas.getBoundingClientRect(), frame = play.getBoundingClientRect(), point = view.screenPoint(column, row); return { x: bounds.left - frame.left + point.x, y: bounds.top - frame.top + point.y, cell: view.cellPixels }; },
   held: () => paused || menu.open,
-  made: tile => { view?.redress(); view?.pop(tile.id); if (!paused && !document.hidden) sound.place(true); snow.burst(tile.x, tile.y); snow.spend(tile.x, tile.y); },
+  made: tile => { view?.redress(); view?.pop(tile.id); if (!paused && !document.hidden) { if (tuning.duckSound) sound.crunch(tuning.duckSound); else sound.place(true); } snow.burst(tile.x, tile.y); snow.spend(tile.x, tile.y); },
 });
 /** Spaces are filled with one-cell pieces only while the ducks are on show. */
 function applyFillRule() { board.singlesOnly = ducksOn() && skin() === 'christmas'; }
