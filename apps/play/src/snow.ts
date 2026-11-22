@@ -92,12 +92,12 @@ function snowDensity(x: number, y: number) {
   return Math.min(1, 0.08 + 0.7 * Math.max(0, field - 0.3) + (0.35 + 0.65 * field) * side * side);
 }
 /** Soft, grainy patches of snow, drawn once and stamped wherever snow lies. */
-const SPRITE_PX = 64;
+const SPRITE_PX = 64, SNOW_SPRITES = 4;
 let sprites: HTMLCanvasElement[] | undefined;
 function snowSprites() {
   if (sprites) return sprites;
   sprites = [];
-  for (let v = 0; v < 4; v++) {
+  for (let v = 0; v < SNOW_SPRITES; v++) {
     const canvas = document.createElement('canvas'); canvas.width = canvas.height = SPRITE_PX;
     const context = canvas.getContext('2d')!, half = SPRITE_PX / 2;
     // A few soft lobes make an uneven patch with no edge to speak of.
@@ -119,6 +119,28 @@ function snowSprites() {
   return sprites;
 }
 
+/**
+ * The patches of snow on one cell: four of them, a little off the quarter points, each wider than the cell.
+ * `draw` is given each patch's centre (board cells), its width in cells, which sprite, and how strong it is.
+ * `depth` is the cell's own snow and `amount` the snow overall (both 0-1); `floor` marks the open floor of a
+ * snow duck's gap, where the same snow is laid thicker (or it would be lost against the dark ground) and
+ * then cut to the planner's share `kept`. The screen and the saved image both draw from this.
+ */
+export function eachSnowPatch(x: number, y: number, depth: number, amount: number, floor: boolean, kept: number, cover: number, draw: (lx: number, ly: number, size: number, sprite: number, strength: number) => void) {
+  const share = depth * depth * (3 - 2 * depth);
+  for (let n = 0; n < 4; n++) {
+    const lx = x + (n & 1) * 0.5 + 0.25 + (grain(x, y, n + 104) - 0.5) * 0.3, ly = y + (n >> 1) * 0.5 + 0.25 + (grain(x, y, n + 108) - 0.5) * 0.3;
+    // A gap's floor has its snow in full as soon as it has gathered, however little has fallen on the pavers so far.
+    const strength = (floor
+      ? Math.min(1, snowDensity(lx, ly) * 1.6 * share + 0.18 * (amount > 0 ? Math.min(1, depth / amount) : 0)) * kept
+      : snowDensity(lx, ly) * share) * cover;
+    if (strength < 0.03) continue;
+    draw(lx, ly, 1 + 0.6 * grain(x, y, n + 112), Math.floor(grain(x, y, n + 116) * SNOW_SPRITES), strength);
+  }
+}
+/** The snow sprites as pictures a saved image can hold inline. */
+export function snowSpriteURLs() { return snowSprites().map(sprite => sprite.toDataURL('image/png')); }
+
 /** Where the drifts lie, 0-1: smooth noise a few cells across, so patches and bare stretches are both broad. */
 function driftField(x: number, y: number) {
   const octave = (scale: number, salt: number) => {
@@ -131,7 +153,8 @@ function driftField(x: number, y: number) {
   return Math.max(0, Math.min(1, (octave(1.9, 200) * 0.65 + octave(0.7, 201) * 0.35 - 0.2) / 0.6));
 }
 /** The pavers' edge warp (play-core's contour): the same wave everywhere, so cells join like the artwork. */
-const WARP = 0.115, SIDE_POINTS = 6;
+export const WARP = 0.115;
+const SIDE_POINTS = 6;
 const cellKey = (x: number, y: number) => y * 16 + x + 2;
 /**
  * A block comes down with only a little snow on it (`FRESH` of what lies around). Once it is down, the
@@ -537,23 +560,13 @@ export class Snow {
     if (!lit.size) return all;
     const images = snowSprites(), cover = Math.min(1, tuning.snowCover * 1.3);
     // The patches of one cell: four of them, a little off the quarter points, each wider than the cell.
-    const stamp = (x: number, y: number, depth: number) => {
-      // On the open floor of a gap the same snow is laid thicker, or it would be lost against the dark ground.
-      const floor = this.ground?.floor?.(x, y) ? 1 : 0, kept = tuning.duckFloor / 100;
-      const share = depth * depth * (3 - 2 * depth);
-      for (let n = 0; n < 4; n++) {
-        const lx = x + (n & 1) * 0.5 + 0.25 + (grain(x, y, n + 104) - 0.5) * 0.3, ly = y + (n >> 1) * 0.5 + 0.25 + (grain(x, y, n + 108) - 0.5) * 0.3;
-        // A gap's floor keeps the planner's share of snow (none at all at 0), and has it in full as soon as
-        // it has gathered, however little has fallen on the pavers so far.
-        const strength = (floor
-          ? Math.min(1, snowDensity(lx, ly) * 1.6 * share + 0.18 * (amount > 0 ? Math.min(1, depth / amount) : 0)) * kept
-          : snowDensity(lx, ly) * share) * cover;
-        if (strength < 0.03) continue;
-        const size = (1 + 0.6 * grain(x, y, n + 112)) * CELL_PX;
-        context.globalAlpha = Math.min(1, strength);
-        context.drawImage(images[Math.floor(grain(x, y, n + 116) * images.length)], px(lx, ly) - size / 2, py(lx, ly) - size / 2, size, size);
-      }
+    const put = (lx: number, ly: number, size: number, sprite: number, strength: number) => {
+      const width = size * CELL_PX;
+      context.globalAlpha = Math.min(1, strength);
+      context.drawImage(images[sprite], px(lx, ly) - width / 2, py(lx, ly) - width / 2, width, width);
     };
+    const kept = tuning.duckFloor / 100;
+    const stamp = (x: number, y: number, depth: number) => eachSnowPatch(x, y, depth, amount, !!this.ground?.floor?.(x, y), kept, cover, put);
     context.save(); context.clip(even);
     for (let c = 0; c < cells.length; c += 3) if (cells[c + 2] > 0) stamp(cells[c], cells[c + 1], amount);
     context.restore();

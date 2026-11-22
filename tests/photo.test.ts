@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
 import { photoSize, receiptFormat, Receipt, PNG_MAX_PIXELS, PNG_MAX_HEIGHT } from '../apps/play/src/export';
-import { stressBoard } from '../apps/play/src/stress';
+import { pinwheelBoard, stressBoard } from '../apps/play/src/stress';
 import { crc32, encodePNG } from '../apps/play/src/png';
 
 it('never sacrifices photo resolution: chooses SVG instead of shrinking', () => {
@@ -60,4 +60,23 @@ it('rejects incomplete PNG rows and cancels abandoned exports', async () => {
   const abort = new AbortController(); abort.abort();
   const receipt = new Receipt(stressBoard(10), new Date());
   await expect(receipt.svgFile(abort.signal)).rejects.toThrow();
+});
+
+it('lays snow on a winter export: over the pavers, under the snow ducks, in the stripes and in the SVG file', async () => {
+  const board = pinwheelBoard(40), ducks = board.tiles.filter(tile => tile.white).length;
+  const snow = { sprites: ['data:a', 'data:b', 'data:c', 'data:d'], duck: (tile: { white: boolean }) => tile.white, floor: 0.3, cover: 0.975 };
+  const receipt = new Receipt(board, new Date(2026, 10, 22), undefined, snow);
+  expect(ducks).toBeGreaterThan(0);
+  const plain = new Receipt(board, new Date(2026, 10, 22)).svg(false), whole = receipt.svg(false);
+  expect(plain).not.toContain('snow-');
+  // Every filled cell is in the clip, and the last paver comes before the snow, the ducks after it.
+  expect(whole.match(/#snow-cell/g)?.length).toBe(board.filled);
+  expect(whole.match(/#snow-[0-3]"/g)?.length).toBeGreaterThan(board.filled);
+  const uses = [...whole.matchAll(/<use xlink:href="#(tile|art)[^"]*"/g)].map(match => match.index!), clip = whole.indexOf('<clipPath');
+  expect(uses.filter(at => at > clip).length).toBe(ducks);
+  const stripe = receipt.window(200, 128, 2, false);
+  expect(stripe).toContain('clip-path="url(#snow-clip)"');
+  const file = await receipt.svgFile(), text = await file.text();
+  expect(text.match(/<clipPath id="snow-clip-\d+"/g)?.length).toBe(Math.ceil(board.height / 32));
+  expect(text.match(/#snow-cell/g)?.length).toBe(board.filled);
 });
