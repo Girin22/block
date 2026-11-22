@@ -200,9 +200,14 @@ function drawLights(context: CanvasRenderingContext2D, view: RainView, clock: nu
     const edge = view.widthPx / 2 * (1 + (right ? 1 : -1) * tuning.lightsSpan / 100), turn = right ? 1.7 : 0;
     const wireX = (y: number) => edge + Math.sin(y * Math.PI * 2 / WIRE_WAVE + turn) * WIRE_SWAY * view.cellPx * (right ? -1 : 1);
     context.globalAlpha = 0.8 * strength; context.strokeStyle = '#26332c'; context.lineWidth = 1.1; context.lineJoin = 'round';
-    context.beginPath();
-    for (let y = bottom - 0.5; y <= view.top + 0.5; y += 0.12) { if (y === bottom - 0.5) context.moveTo(wireX(y), toY(y)); else context.lineTo(wireX(y), toY(y)); }
-    context.stroke();
+    // The wire itself is left out unless asked for (tuning.lightsWire): two dark lines down the screen's edges
+    // caught the eye more than the lights did (2026-11-22). The bulbs keep the places it gave them.
+    const wired = tuning.lightsWire === 1;
+    if (wired) {
+      context.beginPath();
+      for (let y = bottom - 0.5; y <= view.top + 0.5; y += 0.12) { if (y === bottom - 0.5) context.moveTo(wireX(y), toY(y)); else context.lineTo(wireX(y), toY(y)); }
+      context.stroke();
+    }
     for (let k = Math.floor((bottom - 1) / BULB_PITCH); k * BULB_PITCH <= view.top + 1; k++) {
       const side = right ? 1 : 0, index = ((k % sprites.length) + sprites.length + (right ? 3 : 0)) % sprites.length; // k may be negative
       // Bulbs hang to either side of the wire in turn, a loose zigzag: the inner ones stand further out than
@@ -212,7 +217,7 @@ function drawLights(context: CanvasRenderingContext2D, view: RainView, clock: nu
       const breath = bulbLight(k, side, clock);
       const size = view.cellPx * 0.83, x = wireX(hang) + (right ? -1 : 1) * view.cellPx * reach;
       // Its short lead off the wire.
-      context.globalAlpha = 0.8 * strength; context.beginPath(); context.moveTo(wireX(hang), toY(hang)); context.lineTo(x, toY(y)); context.stroke();
+      if (wired) { context.globalAlpha = 0.8 * strength; context.beginPath(); context.moveTo(wireX(hang), toY(hang)); context.lineTo(x, toY(y)); context.stroke(); }
       context.globalAlpha = breath * strength;
       context.drawImage(sprites[index], x - size / 2, toY(y) - size / 2, size, size);
     }

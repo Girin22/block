@@ -80,6 +80,8 @@ export interface Tuning {
   /** String lights: 0 slow breath, 1 twinkle, 2 a wave running along the string, 3 neighbours taking turns. */
   lightsEffect: number;
   /** String lights: cells between one bulb and the next along a string. */
+  /** String lights: 1 draws the dark wire the bulbs hang on, 0 shows the bulbs alone. */
+  lightsWire: number;
   lightsPitch: number;
   /** String lights: how far each wire runs from the middle of the screen, as a share of half its width (100 is the screen's edge). */
   lightsSpan: number;
@@ -103,7 +105,7 @@ export interface Tuning {
   duckTilt: number;
 }
 
-export const TUNING_DEFAULTS: Readonly<Tuning> = { rainSpeed: 1, rippleSize: 1, pauseGap: 1, fallSpeed: 1.1, fillSpeed: 1, typingSpeed: 14, inkSeconds: 0.6, pauseScale: 1, rhythmJitter: 1, stepFadeSeconds: 1.4, stepReadySeconds: 0.5, gestureHint: 1, onboardingSize: 1.5, onboardingPhoneScale: 0.8, introSweep: 1, introSweepSeconds: 6, stepSweepSeconds: 1.4, snowAmount: 90, snowSpeed: 1, snowWind: 0.25, snowSize: 1, snowAccumSeconds: 90, snowCover: 0.75, snowTracks: 1, snowTrackFrom: 18, snowTrackTo: 35, snowTrackDepth: 0.5, snowArea: 0, autoInterval: 0.9, greeting: 0, greetingHold: 2.8, greetingStagger: 0.09, greetingEvery: 5.5, giftWrap: 2, giftChance: 100, duckHeap: 0, duckHeapSpread: 50, duckFloor: 30, duckKind: 0, duckSound: 2, snowLights: 1, lightsColour: 0, lightsEffect: 3, lightsPitch: 0.95, lightsSpan: 98, lightsZigzag: 0.18, lightsJitterY: 10, lightsJitterX: 0.025, duckTilt: 15 };
+export const TUNING_DEFAULTS: Readonly<Tuning> = { rainSpeed: 1, rippleSize: 1, pauseGap: 1, fallSpeed: 1.1, fillSpeed: 1, typingSpeed: 14, inkSeconds: 0.6, pauseScale: 1, rhythmJitter: 1, stepFadeSeconds: 1.4, stepReadySeconds: 0.5, gestureHint: 1, onboardingSize: 1.5, onboardingPhoneScale: 0.8, introSweep: 1, introSweepSeconds: 6, stepSweepSeconds: 1.4, snowAmount: 90, snowSpeed: 1, snowWind: 0.25, snowSize: 1, snowAccumSeconds: 90, snowCover: 0.75, snowTracks: 1, snowTrackFrom: 18, snowTrackTo: 35, snowTrackDepth: 0.5, snowArea: 0, autoInterval: 0.9, greeting: 0, greetingHold: 2.8, greetingStagger: 0.09, greetingEvery: 5.5, giftWrap: 2, giftChance: 100, duckHeap: 0, duckHeapSpread: 50, duckFloor: 30, duckKind: 0, duckSound: 2, snowLights: 1, lightsColour: 0, lightsEffect: 3, lightsWire: 0, lightsPitch: 0.95, lightsSpan: 98, lightsZigzag: 0.18, lightsJitterY: 10, lightsJitterX: 0.025, duckTilt: 15 };
 
 /** A `choices` field is a switch between labelled values instead of a gauge. */
 export type TuningGroup = 'weather' | 'snow' | 'lights' | 'tracks' | 'greeting' | 'gift' | 'screen' | 'block' | 'auto' | 'onboarding';
@@ -124,6 +126,7 @@ export const TUNING_FIELDS: readonly TuningField[] = [
   { key: 'snowLights', group: 'lights', label: '양옆 줄조명', min: 0, max: 1, step: 1, unit: '', hint: v => v ? '양옆 가장자리를 따라 전구 줄이 걸리고 은은하게 반짝임' : '줄조명 없음', choices: [{ value: 1, label: '켜기' }, { value: 0, label: '끄기' }] },
   { key: 'lightsColour', group: 'lights', label: '전구 색', min: 0, max: 2, step: 1, unit: '', hint: v => v === 1 ? '모든 전구가 황금색' : v === 2 ? '모든 전구가 흰색' : '따뜻한 흰색 위주에 금색·옅은 빨강·옅은 초록이 섞임', choices: [{ value: 0, label: '여러 색' }, { value: 1, label: '황금색' }, { value: 2, label: '흰색' }] },
   { key: 'lightsEffect', group: 'lights', label: '조명 효과', min: 0, max: 3, step: 1, unit: '', hint: v => v === 1 ? '켜진 채로 있다가 전구마다 가끔 반짝 빛남' : v === 2 ? '빛이 줄을 따라 위에서 아래로 흘러감' : v === 3 ? '이웃한 전구가 번갈아 밝아짐' : '전구마다 다른 박자로 천천히 밝아졌다 어두워짐', choices: [{ value: 0, label: '은은하게' }, { value: 1, label: '반짝임' }, { value: 2, label: '흐르기' }, { value: 3, label: '번갈아' }] },
+  { key: 'lightsWire', group: 'lights', label: '전선', min: 0, max: 1, step: 1, unit: '', hint: v => v ? '전구가 달린 어두운 전선을 함께 그림' : '전선 없이 전구만 보임', choices: [{ value: 0, label: '숨기기' }, { value: 1, label: '보이기' }] },
   { key: 'lightsSpan', group: 'lights', label: '중앙에서 전선까지 거리', min: 20, max: 100, step: 1, unit: '%', hint: v => v >= 100 ? '두 전선이 화면 양 끝에 붙음' : `두 전선이 화면 중앙에서 양쪽으로 화면 반 너비의 ${Math.round(v)}%만큼 떨어져 있음` },
   { key: 'lightsPitch', group: 'lights', label: '전구 간격', min: 0.4, max: 2.5, step: 0.05, unit: '칸', hint: v => `한 줄에 ${v.toFixed(2)}칸마다 전구 하나 (작을수록 촘촘함)` },
   { key: 'lightsZigzag', group: 'lights', label: '지그재그 폭', min: 0, max: 0.6, step: 0.01, unit: '칸', hint: v => v <= 0 ? '전구가 모두 전선 위에 한 줄로 달림' : `전선 안쪽과 바깥쪽 전구가 ${v.toFixed(2)}칸 벌어짐` },
