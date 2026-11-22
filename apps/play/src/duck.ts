@@ -41,8 +41,9 @@ export function prepareDucks() {
 export function duckArt(id: number) {
   if (!ducksOn() || !sources) return undefined;
   if (waiting.has(id)) return none;
-  // Plain ducks, in Santa hats on Christmas Eve and Christmas Day (or always, if a tester asks for it).
-  const wanted = tuning.duckKind || santaForced || santaDay() ? 1 : 0, kind = sources[wanted] ? wanted : 0, image = sources[kind];
+  // Plain ducks; on Christmas Eve and Christmas Day one in ten wears a Santa hat (2026-11-22: all of them
+  // in hats was too much), which ones being fixed by the tile. A tester can ask for hats on every duck.
+  const wanted = tuning.duckKind || ((santaForced || santaDay()) && santaShare(id) < SANTA_SHARE) ? 1 : 0, kind = sources[wanted] ? wanted : 0, image = sources[kind];
   if (!image) return undefined;
   // The lean is fixed by the tile, so a duck keeps it across redraws and in the saved image.
   // Each leans its own way within tuning.duckTilt degrees either side, so a row of them is not stamped.
@@ -55,15 +56,21 @@ export function duckArt(id: number) {
  * Draws every lean of the duck ahead of time, one picture at a time between frames. Each is drawn and
  * encoded once; done as the first duck of that lean was pressed out, it made a phone stutter just then.
  */
+/** The share of ducks in Santa hats on the two days, and a tile's own steady number in [0, 1) to set against it. */
+export const SANTA_SHARE = 0.1;
+export const santaShare = (id: number) => (Math.imul(id + 7, 0x9e3779b1) >>> 0) / 4294967296;
 let warming = 0;
 export function warmDucks() {
   if (warming || !ducksOn()) return;
   void prepareDucks().then(() => {
-    const wanted = tuning.duckKind || santaForced || santaDay() ? 1 : 0, kind = sources?.[wanted] ? wanted : 0, image = sources?.[kind];
-    if (!image) return;
-    const range = Math.round(tuning.duckTilt); let lean = -range;
+    // The plain duck unless every duck wears a hat; both on the two days, when a few do.
+    const kinds = (tuning.duckKind ? [1] : santaForced || santaDay() ? [0, 1] : [0]).filter(kind => sources?.[kind]);
+    const range = Math.round(tuning.duckTilt); let turn = 0;
     const next = () => {
-      for (; lean <= range; lean++) { const key = `${kind}:${lean}`; if (!drawn.has(key)) { drawn.set(key, duckPicture(image, lean)); lean++; warming = window.setTimeout(next, 60); return; } }
+      for (; turn < kinds.length * (range * 2 + 1); turn++) {
+        const kind = kinds[Math.floor(turn / (range * 2 + 1))], lean = turn % (range * 2 + 1) - range, key = `${kind}:${lean}`;
+        if (!drawn.has(key)) { drawn.set(key, duckPicture(sources![kind]!, lean)); turn++; warming = window.setTimeout(next, 60); return; }
+      }
       warming = 0;
     };
     next();
