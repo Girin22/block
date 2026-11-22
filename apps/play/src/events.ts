@@ -9,8 +9,8 @@ export interface SeasonalEvent {
 }
 
 export const HALLOWEEN: SeasonalEvent = { from: [10, 24], to: [11, 2] };
-/** Winter: snow from the first of December to the end of February (the 29th in a leap year). */
-export const CHRISTMAS: SeasonalEvent = { from: [12, 1], to: [2, 29] };
+/** Winter: snow from 25 November (the planner moved it up from 1 December, 2026-11-22) to the end of February (the 29th in a leap year). */
+export const CHRISTMAS: SeasonalEvent = { from: [11, 25], to: [2, 29] };
 
 /**
  * The winter greeting's phrases for a date, in the order they are shown: Christmas wishes up to the

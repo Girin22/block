@@ -10,7 +10,8 @@ function random(seed: number) {
 
 describe('winter event', () => {
   it('is open from the first of December to the end of February', () => {
-    expect(eventOpen(CHRISTMAS, new Date(2026, 10, 30, 23, 59))).toBe(false);
+    expect(eventOpen(CHRISTMAS, new Date(2026, 10, 24, 23, 59))).toBe(false);
+    expect(eventOpen(CHRISTMAS, new Date(2026, 10, 25))).toBe(true);
     expect(eventOpen(CHRISTMAS, new Date(2026, 11, 1))).toBe(true);
     expect(eventOpen(CHRISTMAS, new Date(2026, 11, 25))).toBe(true);
     expect(eventOpen(CHRISTMAS, new Date(2027, 0, 15))).toBe(true);
