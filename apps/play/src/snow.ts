@@ -155,6 +155,13 @@ function driftField(x: number, y: number) {
 /** The pavers' edge warp (play-core's contour): the same wave everywhere, so cells join like the artwork. */
 export const WARP = 0.115;
 const SIDE_POINTS = 6;
+/**
+ * The snow pictures are drawn by the processor, not the graphics card (2026-11-23). They are made of
+ * thousands of small stamps and then handed to WebGL as a texture; drawn on the card, a slow phone's
+ * graphics thread stalled on them for up to 0.7 s at a time (measured on a Galaxy Tab A7 Lite: 15 frames
+ * a second in the winter environment, 32 with only this changed).
+ */
+const SOFT: CanvasRenderingContext2DSettings = { willReadFrequently: true };
 const cellKey = (x: number, y: number) => y * 16 + x + 2;
 /**
  * A block comes down with only a little snow on it (`FRESH` of what lies around). Once it is down, the
@@ -278,7 +285,20 @@ export class Snow {
   private blank = true;
   /** The cover, drawn in board cells: `rect` says which cells the picture spans. */
   readonly cover = document.createElement('canvas');
+  /**
+   * Every snowy cell's patches at their fullest, uncut, over the same cells as the cover (2026-11-23).
+   * Stamping them is what a redraw costs (a slow tablet took 70 ms for the picture, 40 ms for a corner of
+   * it, twice a second), so they are stamped once: a redraw lays this picture down and only dims and
+   * cuts it. A cell is stamped when snow first lies on it; `based` says which are in (2 for a gap's floor).
+   */
+  private base = document.createElement('canvas');
+  private based = new Map<number, number>();
+  private baseKey = '';
   rect = { x: -1, y: 0, columns: COVER_COLUMNS, rows: 1 };
+  /** The part of the cover picture the last redraw changed, in its pixels; undefined when it was all of it. */
+  coverDirty?: { x: number; y: number; w: number; h: number };
+  /** The cover picture's pixels, for the scene to hand to the graphics card. */
+  coverPixels(x: number, y: number, w: number, h: number) { return this.cover.getContext('2d', SOFT)!.getImageData(x, y, w, h).data; }
   private dirty = true;
   /** The dog has pressed prints the picture does not show yet. */
   private stepped = false;
@@ -401,7 +421,7 @@ export class Snow {
     this.pieceDrawn = drawn;
     const piece = this.piece, width = Math.round((w + PIECE_MARGIN * 2) * CELL_PX), height = Math.round((h + PIECE_MARGIN * 2) * CELL_PX);
     if (piece.width !== width || piece.height !== height) { piece.width = width; piece.height = height; }
-    const context = piece.getContext('2d')!;
+    const context = piece.getContext('2d', SOFT)!;
     context.setTransform(1, 0, 0, 1, 0, 0); context.globalCompositeOperation = 'source-over'; context.globalAlpha = 1;
     context.clearRect(0, 0, width, height);
     const { x, y } = PIECE_HOME, cells: number[] = [];
@@ -557,8 +577,8 @@ export class Snow {
    * just landed (shallower than the rest) takes the same patches more faintly, inside its own outline,
    * until its snow has gathered.
    */
-  private paint(context: CanvasRenderingContext2D, cells: number[], px: (x: number, y: number) => number, py: (x: number, y: number) => number, amount: number) {
-    const all = new Path2D(), even = new Path2D(), lit = new Set<number>();
+  private paint(context: CanvasRenderingContext2D, cells: number[], px: (x: number, y: number) => number, py: (x: number, y: number) => number, amount: number, base?: HTMLCanvasElement) {
+    const all = new Path2D(), lit = new Set<number>();
     const gathering: { x: number; y: number; depth: number; outline: Path2D }[] = [], floors: typeof gathering = [];
     for (let c = 0; c < cells.length; c += 3) {
       const x = cells[c], y = cells[c + 1], depth = cells[c + 2];
@@ -566,8 +586,7 @@ export class Snow {
       lit.add(cellKey(x, y));
       const paths = [all];
       if (this.ground?.floor?.(x, y)) { const outline = new Path2D(); floors.push({ x, y, depth, outline }); paths.push(outline); }
-      if (depth >= amount - 0.004) paths.push(even);
-      else { const outline = new Path2D(); gathering.push({ x, y, depth, outline }); paths.push(outline); }
+      if (depth < amount - 0.004) { const outline = new Path2D(); gathering.push({ x, y, depth, outline }); paths.push(outline); }
       for (const path of paths) {
         path.moveTo(px(x, y), py(x, y));
         for (let i = 1; i <= SIDE_POINTS; i++) path.lineTo(px(x + i / SIDE_POINTS, y), py(x + i / SIDE_POINTS, y));
@@ -587,14 +606,24 @@ export class Snow {
     };
     const kept = tuning.duckFloor / 100;
     const stamp = (x: number, y: number, depth: number) => eachSnowPatch(x, y, depth, amount, !!this.ground?.floor?.(x, y), kept, cover, put);
-    context.save(); context.clip(even);
-    for (let c = 0; c < cells.length; c += 3) if (cells[c + 2] > 0) stamp(cells[c], cells[c + 1], amount);
-    context.restore();
+    // The patches go down uncut, and the pavers' outline is cut out of the picture once at the end
+    // (2026-11-23). Before, every patch was drawn through a clip of that whole outline, thousands of
+    // points long: on a slow phone that one clip made a redraw take up to 0.7 s and the game stutter.
+    const full = amount * amount * (3 - 2 * amount);
+    // The cover's patches are kept ready, at their fullest (see `base`), and laid down as one picture, as
+    // faint as the snow is deep so far. The block in play has only a few and stamps its own.
+    if (base) { context.globalAlpha = full; context.drawImage(base, 0, 0); }
+    else for (let c = 0; c < cells.length; c += 3) if (cells[c + 2] > 0) stamp(cells[c], cells[c + 1], amount);
+    // A block still gathering its snow has the same patches, only fainter: its share of them is left and
+    // the rest taken off, inside its own outline. (Before, each such cell was emptied and its patches and
+    // its neighbours' drawn again through a clip of the cell, 36 clipped stamps a cell; with several
+    // blocks gathering at once that was most of a redraw.)
+    context.globalCompositeOperation = 'destination-out';
     for (const cell of gathering) {
-      context.save(); context.clip(cell.outline);
-      for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) if (lit.has(cellKey(cell.x + dx, cell.y + dy))) stamp(cell.x + dx, cell.y + dy, cell.depth);
-      context.restore();
+      context.globalAlpha = 1 - Math.min(1, cell.depth * cell.depth * (3 - 2 * cell.depth) / full);
+      context.fill(cell.outline);
     }
+    context.globalCompositeOperation = 'source-over';
     // Heaps: the snow piled into a gap before the tongs come, each kept inside its own gap. The planner
     // sets how much (none at 0) and how it lies: a tight mound in the middle, or spread over the floor.
     const much = tuning.duckHeap / 100, spread = tuning.duckHeapSpread / 100;
@@ -610,6 +639,7 @@ export class Snow {
       context.restore();
     }
     context.globalAlpha = 1;
+    context.globalCompositeOperation = 'destination-in'; context.fill(all); context.globalCompositeOperation = 'source-over';
     return all;
   }
 
@@ -647,15 +677,19 @@ export class Snow {
     if (whole) { this.stepped = false; this.wholeAt = this.clock; this.rect = { x: -1, y: Math.floor(bottom) - ROWS_BELOW, columns: COVER_COLUMNS, rows }; }
     const { cover, rect } = this;
     if (cover.width !== rect.columns * CELL_PX || cover.height !== rect.rows * CELL_PX) { cover.width = rect.columns * CELL_PX; cover.height = rect.rows * CELL_PX; }
-    const context = cover.getContext('2d')!;
+    const context = cover.getContext('2d', SOFT)!;
     context.setTransform(1, 0, 0, 1, 0, 0); context.globalCompositeOperation = 'source-over'; context.globalAlpha = 1;
     // The cells to draw: all of them, or those around the gathering blocks. The picture is cut two cells
     // out from those blocks and drawn from three out, so what is redrawn along the cut is what was there.
     let x0 = rect.x, x1 = rect.x + rect.columns, y0 = rect.y, y1 = rect.y + rect.rows;
     context.save();
+    this.coverDirty = undefined;
     if (!whole && box) {
       x0 = Math.max(x0, box.x0 - 3); x1 = Math.min(x1, box.x1 + 3); y0 = Math.max(y0, box.y0 - 3); y1 = Math.min(y1, box.y1 + 3);
       const left = (box.x0 - 2 - rect.x) * CELL_PX, top = (rect.y + rect.rows - (box.y1 + 2)) * CELL_PX;
+      const right = Math.min(cover.width, left + (box.x1 - box.x0 + 4) * CELL_PX), low = Math.min(cover.height, top + (box.y1 - box.y0 + 4) * CELL_PX), x = Math.max(0, left), y = Math.max(0, top);
+      if (right <= x || low <= y) { context.restore(); return false; }
+      this.coverDirty = { x, y, w: right - x, h: low - y };
       context.beginPath(); context.rect(left, top, (box.x1 - box.x0 + 4) * CELL_PX, (box.y1 - box.y0 + 4) * CELL_PX); context.clip();
     }
     context.clearRect(0, 0, cover.width, cover.height);
@@ -663,18 +697,43 @@ export class Snow {
     // (The contour is written with y running down the screen; here y runs up the board, so both signs turn.)
     const px = (x: number, y: number) => (x - WARP * Math.sin(y * Math.PI * 2) - rect.x) * CELL_PX;
     const py = (x: number, y: number) => (rect.y + rect.rows - (y + WARP * Math.sin(x * Math.PI * 2))) * CELL_PX;
-    const cells: number[] = [];
+    const cells: number[] = [], fresh: number[] = [], { base, based } = this;
+    const baseKey = `${rect.x}:${rect.y}:${rect.columns}:${rect.rows}:${tuning.snowCover}:${tuning.duckFloor}:${tuning.snowArea}`;
+    let stale = baseKey !== this.baseKey;
     for (let y = y0; y < y1; y++) {
       for (let x = x0; x < x1; x++) {
-        const key = cellKey(x, y), depth = this.depthAt(x, y);
+        const key = cellKey(x, y), depth = this.depthAt(x, y), had = based.get(key);
         // A cell as deep as the ground no longer needs its own record.
         if (depth >= 1 && this.since.has(key)) this.since.delete(key);
         if (depth > 0) cells.push(x, y, depth);
+        // The stamped patches follow the cells: a newly snowy one is added, and when one has gone bare or
+        // has become (or stopped being) a gap's floor, they are all stamped again.
+        const kind = depth > 0 ? this.ground?.floor?.(x, y) ? 2 : 1 : 0;
+        if (kind && !had) fresh.push(x, y, kind); else if (kind !== (had ?? 0)) stale = true;
       }
     }
-    const outline = this.paint(context, cells, px, py, this.depth);
+    if (stale) {
+      this.baseKey = baseKey; based.clear(); fresh.length = 0;
+      if (base.width !== cover.width || base.height !== cover.height) { base.width = cover.width; base.height = cover.height; }
+      for (let y = rect.y; y < rect.y + rect.rows; y++) for (let x = rect.x; x < rect.x + rect.columns; x++) if (this.depthAt(x, y) > 0) fresh.push(x, y, this.ground?.floor?.(x, y) ? 2 : 1);
+    }
+    if (stale || fresh.length) {
+      const layer = base.getContext('2d', SOFT)!, images = snowSprites(), strong = Math.min(1, tuning.snowCover * 1.3), kept = tuning.duckFloor / 100;
+      layer.setTransform(1, 0, 0, 1, 0, 0); layer.globalCompositeOperation = 'source-over';
+      if (stale) layer.clearRect(0, 0, base.width, base.height);
+      for (let c = 0; c < fresh.length; c += 3) {
+        based.set(cellKey(fresh[c], fresh[c + 1]), fresh[c + 2]);
+        eachSnowPatch(fresh[c], fresh[c + 1], 1, 1, fresh[c + 2] === 2, kept, strong, (lx, ly, size, sprite, strength) => {
+          const width = size * CELL_PX;
+          layer.globalAlpha = Math.min(1, strength);
+          layer.drawImage(images[sprite], px(lx, ly) - width / 2, py(lx, ly) - width / 2, width, width);
+        });
+      }
+      layer.globalAlpha = 1;
+    }
+    const outline = this.paint(context, cells, px, py, this.depth, base);
     // Prints are pressed wherever there is a paver under them, as deep as the snow there allows.
-    context.clip(outline);
+    if (this.prints.length) context.clip(outline);
     let kept = 0;
     for (const print of this.prints) {
       const strength = 1 - (this.fallen - print.fallen) / PRINT_REFILL;

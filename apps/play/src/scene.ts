@@ -75,7 +75,7 @@ export class PlayScene {
   /** Whether the glitch pass has been drawn once; until then its first use would stall on shader compiling. */
   private glitchReady = false;
   /** The snow cover: one picture in board coordinates, under the falling block (snow.ts draws it). */
-  private snowCover?: { mesh: THREE.Mesh; texture: THREE.CanvasTexture; width: number; height: number };
+  private snowCover?: { mesh: THREE.Mesh; texture: THREE.DataTexture; patch: THREE.DataTexture };
   /** The same snow on the block in play, carried along with it. */
   private pieceSnow?: { mesh: THREE.Mesh; texture: THREE.CanvasTexture; width: number; height: number };
   private post?: { target: THREE.WebGLRenderTarget; scene: THREE.Scene; camera: THREE.Camera; material: THREE.ShaderMaterial };
@@ -396,18 +396,33 @@ export class PlayScene {
     const snow = this.snow!, opacity = snow.coverOpacity;
     if (!this.snowCover) {
       if (opacity <= 0) return;
-      const texture = new THREE.CanvasTexture(snow.cover); texture.colorSpace = THREE.SRGBColorSpace;
-      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: texture, transparent: true, depthWrite: false, toneMapped: false }));
-      this.scene.add(mesh); this.snowCover = { mesh, texture, width: snow.cover.width, height: snow.cover.height }; redrawn = true;
+      // The picture is handed over as plain pixels, top row first, and without smaller copies of itself:
+      // it is always shown larger than it is drawn. (2026-11-23: given as a canvas, every redraw sent the
+      // whole picture through a turn-over and a conversion, a sixth of a slow tablet's time.)
+      const data = () => { const texture = new THREE.DataTexture(new Uint8ClampedArray(4), 1, 1, THREE.RGBAFormat); texture.colorSpace = THREE.SRGBColorSpace; texture.magFilter = texture.minFilter = THREE.LinearFilter; return texture; };
+      const texture = data(), geometry = new THREE.PlaneGeometry(1, 1), uv = geometry.getAttribute('uv');
+      for (let i = 0; i < uv.count; i++) uv.setY(i, 1 - uv.getY(i));
+      const mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ map: texture, transparent: true, depthWrite: false, toneMapped: false }));
+      this.scene.add(mesh); this.snowCover = { mesh, texture, patch: data() }; redrawn = true;
     }
     const { mesh, texture } = this.snowCover, rect = snow.rect;
     mesh.visible = opacity > 0; (mesh.material as THREE.MeshBasicMaterial).opacity = opacity;
     mesh.scale.set(rect.columns, rect.rows, 1); mesh.position.set(rect.x + rect.columns / 2, rect.y + rect.rows / 2, 0.05);
     mesh.renderOrder = this.board.tiles.length + .5;
     if (!redrawn) return;
+    this.lastChange = now;
+    const { width, height } = snow.cover, dirty = snow.coverDirty, image = texture.image;
+    // Only the corner that was redrawn is sent, when that is all that changed.
+    if (dirty && image.width === width && image.height === height) {
+      const patch = this.snowCover.patch;
+      patch.image = { data: snow.coverPixels(dirty.x, dirty.y, dirty.w, dirty.h), width: dirty.w, height: dirty.h };
+      this.renderer.copyTextureToTexture(patch, texture, null, new THREE.Vector2(dirty.x, dirty.y));
+      return;
+    }
     // A picture of a new size needs new storage on the graphics card.
-    if (this.snowCover.width !== snow.cover.width || this.snowCover.height !== snow.cover.height) { texture.dispose(); this.snowCover.width = snow.cover.width; this.snowCover.height = snow.cover.height; }
-    texture.needsUpdate = true; this.lastChange = now;
+    if (image.width !== width || image.height !== height) texture.dispose();
+    texture.image = { data: snow.coverPixels(0, 0, width, height), width, height };
+    texture.needsUpdate = true;
   }
   /** Where the camera settles: the top of the stack held at the middle of the screen. */
   private get targetCenter() { return Math.max(this.halfHeight - 0.12, this.board.height + 0.6); }
